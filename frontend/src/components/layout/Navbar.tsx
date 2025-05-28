@@ -1,160 +1,73 @@
-// src/components/layout/Navbar.tsx
 import React from 'react';
+import { useTheme } from '../theme/theme-provider';
+import { Button } from '../ui/button';
+import { Bell, Moon, Sun, User } from 'lucide-react';
 import { 
-  AppBar, 
-  Toolbar, 
-  Typography, 
-  IconButton, 
-  Box, 
-  Avatar, 
-  Menu, 
-  MenuItem, 
-  Tooltip, 
-  Badge 
-} from '@mui/material';
-import MenuIcon from '@mui/icons-material/Menu';
-import NotificationsIcon from '@mui/icons-material/Notifications';
-import Brightness4Icon from '@mui/icons-material/Brightness4';
-import Brightness7Icon from '@mui/icons-material/Brightness7';
-import { useDispatch, useSelector } from 'react-redux';
-import { RootState } from '../../redux/store';
-import { toggleSidebar, toggleDarkMode } from '../../redux/slices/uiSlice';
-import { logout } from '../../redux/slices/authSlice';
-import { useNavigate } from 'react-router-dom';
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from '../ui/dropdown-menu';
 
-const Navbar: React.FC = () => {
-  const dispatch = useDispatch();
-  const navigate = useNavigate();
-  const { darkMode } = useSelector((state: RootState) => state.ui);
-  const { user } = useSelector((state: RootState) => state.auth);
-  const { notifications } = useSelector((state: RootState) => state.ui);
-  
-  const [anchorElUser, setAnchorElUser] = React.useState<null | HTMLElement>(null);
-  const [anchorElNotifications, setAnchorElNotifications] = React.useState<null | HTMLElement>(null);
-
-  const handleOpenUserMenu = (event: React.MouseEvent<HTMLElement>) => {
-    setAnchorElUser(event.currentTarget);
-  };
-
-  const handleCloseUserMenu = () => {
-    setAnchorElUser(null);
-  };
-
-  const handleOpenNotificationsMenu = (event: React.MouseEvent<HTMLElement>) => {
-    setAnchorElNotifications(event.currentTarget);
-  };
-
-  const handleCloseNotificationsMenu = () => {
-    setAnchorElNotifications(null);
-  };
-
-  const handleLogout = () => {
-    dispatch(logout());
-    navigate('/login');
-    handleCloseUserMenu();
-  };
-
-  const handleProfile = () => {
-    navigate('/profile');
-    handleCloseUserMenu();
-  };
-
-  const handleSettings = () => {
-    navigate('/settings');
-    handleCloseUserMenu();
-  };
+const Navbar = () => {
+  const { theme, setTheme } = useTheme();
 
   return (
-    <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
-      <Toolbar>
-        <IconButton
-          color="inherit"
-          aria-label="open drawer"
-          edge="start"
-          onClick={() => dispatch(toggleSidebar())}
-          sx={{ mr: 2 }}
-        >
-          <MenuIcon />
-        </IconButton>
-        <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-          AI Cold Calling CRM
-        </Typography>
-
-        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-          <IconButton color="inherit" onClick={() => dispatch(toggleDarkMode())}>
-            {darkMode ? <Brightness7Icon /> : <Brightness4Icon />}
-          </IconButton>
-
-          <Tooltip title="Notifications">
-            <IconButton color="inherit" onClick={handleOpenNotificationsMenu}>
-              <Badge badgeContent={notifications.length} color="error">
-                <NotificationsIcon />
-              </Badge>
-            </IconButton>
-          </Tooltip>
-          <Menu
-            sx={{ mt: '45px' }}
-            id="notifications-menu"
-            anchorEl={anchorElNotifications}
-            anchorOrigin={{
-              vertical: 'top',
-              horizontal: 'right',
-            }}
-            keepMounted
-            transformOrigin={{
-              vertical: 'top',
-              horizontal: 'right',
-            }}
-            open={Boolean(anchorElNotifications)}
-            onClose={handleCloseNotificationsMenu}
-          >
-            {notifications.length > 0 ? (
-              notifications.map((notification) => (
-                <MenuItem key={notification.id} onClick={handleCloseNotificationsMenu}>
-                  <Typography textAlign="center">{notification.message}</Typography>
-                </MenuItem>
-              ))
-            ) : (
-              <MenuItem onClick={handleCloseNotificationsMenu}>
-                <Typography textAlign="center">No new notifications</Typography>
-              </MenuItem>
-            )}
-          </Menu>
-
-          <Tooltip title="Open settings">
-            <IconButton onClick={handleOpenUserMenu} sx={{ p: 0, ml: 2 }}>
-              <Avatar alt={user?.first_name} src="/static/images/avatar/2.jpg" />
-            </IconButton>
-          </Tooltip>
-          <Menu
-            sx={{ mt: '45px' }}
-            id="menu-appbar"
-            anchorEl={anchorElUser}
-            anchorOrigin={{
-              vertical: 'top',
-              horizontal: 'right',
-            }}
-            keepMounted
-            transformOrigin={{
-              vertical: 'top',
-              horizontal: 'right',
-            }}
-            open={Boolean(anchorElUser)}
-            onClose={handleCloseUserMenu}
-          >
-            <MenuItem onClick={handleProfile}>
-              <Typography textAlign="center">Profile</Typography>
-            </MenuItem>
-            <MenuItem onClick={handleSettings}>
-              <Typography textAlign="center">Settings</Typography>
-            </MenuItem>
-            <MenuItem onClick={handleLogout}>
-              <Typography textAlign="center">Logout</Typography>
-            </MenuItem>
-          </Menu>
-        </Box>
-      </Toolbar>
-    </AppBar>
+    <header className="border-b bg-background">
+      <div className="flex h-16 items-center px-4 md:px-6">
+        <div className="ml-auto flex items-center gap-4">
+          <Button variant="ghost" size="icon" className="relative">
+            <Bell className="h-5 w-5" />
+            <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-primary"></span>
+          </Button>
+          
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon">
+                {theme === 'dark' ? (
+                  <Moon className="h-5 w-5" />
+                ) : (
+                  <Sun className="h-5 w-5" />
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Theme</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setTheme('light')}>
+                <Sun className="mr-2 h-4 w-4" />
+                Light
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTheme('dark')}>
+                <Moon className="mr-2 h-4 w-4" />
+                Dark
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTheme('system')}>
+                System
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="rounded-full">
+                <User className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>My Account</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem>Profile</DropdownMenuItem>
+              <DropdownMenuItem>Settings</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem>Logout</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+    </header>
   );
 };
 

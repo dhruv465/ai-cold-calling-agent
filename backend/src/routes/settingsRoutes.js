@@ -1,25 +1,24 @@
-// src/routes/settingsRoutes.js
 const express = require('express');
 const router = express.Router();
 const settingsController = require('../controllers/settingsController');
-const auth = require('../middleware/auth');
+const { protect } = require('../middleware/auth');
 
-// Get API credentials
-router.get('/api-credentials', auth, settingsController.getApiCredentials);
+// All routes require authentication
+router.use(protect);
 
-// Save API credentials
-router.post('/api-credentials', auth, settingsController.saveCredentials);
+// Get all settings
+router.get('/', settingsController.getAllSettings);
 
-// Validate API credentials
-router.post('/validate-credentials', auth, settingsController.validateCredentials);
+// Get settings by category
+router.get('/:category', settingsController.getSettingsByCategory);
 
-// Create backup
-router.post('/create-backup', auth, settingsController.createBackup);
+// Update settings (batch update)
+router.put('/', settingsController.updateSettings);
 
-// Get available backups
-router.get('/available-backups', auth, settingsController.getAvailableBackups);
+// Validate API key
+router.post('/validate-api-key', settingsController.validateApiKey);
 
-// Restore from backup
-router.post('/restore-backup', auth, settingsController.restoreFromBackup);
+// Delete setting
+router.delete('/:category/:key', settingsController.deleteSetting);
 
 module.exports = router;

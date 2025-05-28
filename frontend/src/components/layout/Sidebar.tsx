@@ -1,174 +1,107 @@
-// src/components/layout/Sidebar.tsx
 import React from 'react';
+import { NavLink } from 'react-router-dom';
+import { cn } from '../../lib/utils';
 import { 
-  Drawer, 
-  List, 
-  ListItem, 
-  ListItemIcon, 
-  ListItemText, 
-  Divider, 
-  Box, 
-  Toolbar,
-  Collapse,
-  ListItemButton
-} from '@mui/material';
-import { useSelector } from 'react-redux';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { RootState } from '../../redux/store';
+  LayoutDashboard, 
+  Phone, 
+  Users, 
+  BarChart3, 
+  Settings, 
+  MessageSquare,
+  FileText,
+  Headphones,
+  HelpCircle
+} from 'lucide-react';
 
-// Icons
-import DashboardIcon from '@mui/icons-material/Dashboard';
-import PeopleIcon from '@mui/icons-material/People';
-import CampaignIcon from '@mui/icons-material/Campaign';
-import PhoneIcon from '@mui/icons-material/Phone';
-import BarChartIcon from '@mui/icons-material/BarChart';
-import SettingsIcon from '@mui/icons-material/Settings';
-import ExpandLess from '@mui/icons-material/ExpandLess';
-import ExpandMore from '@mui/icons-material/ExpandMore';
-import PersonIcon from '@mui/icons-material/Person';
-import GroupIcon from '@mui/icons-material/Group';
-import AssessmentIcon from '@mui/icons-material/Assessment';
-import TimelineIcon from '@mui/icons-material/Timeline';
-import InsightsIcon from '@mui/icons-material/Insights';
-
-const drawerWidth = 240;
-
-const Sidebar: React.FC = () => {
-  const { sidebarOpen } = useSelector((state: RootState) => state.ui);
-  const { user } = useSelector((state: RootState) => state.auth);
-  const navigate = useNavigate();
-  const location = useLocation();
-  
-  const [openAnalytics, setOpenAnalytics] = React.useState(false);
-  const [openSettings, setOpenSettings] = React.useState(false);
-
-  const handleAnalyticsClick = () => {
-    setOpenAnalytics(!openAnalytics);
-  };
-
-  const handleSettingsClick = () => {
-    setOpenSettings(!openSettings);
-  };
-
-  const isAdmin = user?.role === 'admin';
-  const isManager = user?.role === 'admin' || user?.role === 'manager';
-
-  const menuItems = [
-    { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', access: true },
-    { text: 'Leads', icon: <PeopleIcon />, path: '/leads', access: true },
-    { text: 'Campaigns', icon: <CampaignIcon />, path: '/campaigns', access: isManager },
-    { text: 'Calls', icon: <PhoneIcon />, path: '/calls', access: true },
+const Sidebar = () => {
+  const navItems = [
+    {
+      title: 'Dashboard',
+      href: '/',
+      icon: <LayoutDashboard className="h-5 w-5" />
+    },
+    {
+      title: 'Campaigns',
+      href: '/campaigns',
+      icon: <FileText className="h-5 w-5" />
+    },
+    {
+      title: 'Leads',
+      href: '/leads',
+      icon: <Users className="h-5 w-5" />
+    },
+    {
+      title: 'Calls',
+      href: '/calls',
+      icon: <Phone className="h-5 w-5" />
+    },
+    {
+      title: 'Voice Demo',
+      href: '/voice-demo',
+      icon: <Headphones className="h-5 w-5" />
+    },
+    {
+      title: 'Analytics',
+      href: '/analytics',
+      icon: <BarChart3 className="h-5 w-5" />
+    },
+    {
+      title: 'Conversations',
+      href: '/conversations',
+      icon: <MessageSquare className="h-5 w-5" />
+    },
+    {
+      title: 'Settings',
+      href: '/settings',
+      icon: <Settings className="h-5 w-5" />
+    },
+    {
+      title: 'Help',
+      href: '/help',
+      icon: <HelpCircle className="h-5 w-5" />
+    }
   ];
-
-  const analyticsItems = [
-    { text: 'Overview', icon: <BarChartIcon />, path: '/analytics', access: true },
-    { text: 'Call Metrics', icon: <TimelineIcon />, path: '/analytics/calls', access: true },
-    { text: 'Lead Metrics', icon: <AssessmentIcon />, path: '/analytics/leads', access: true },
-    { text: 'Agent Performance', icon: <InsightsIcon />, path: '/analytics/agents', access: isManager },
-  ];
-
-  const settingsItems = [
-    { text: 'Profile', icon: <PersonIcon />, path: '/settings/profile', access: true },
-    { text: 'User Management', icon: <GroupIcon />, path: '/settings/users', access: isAdmin },
-    { text: 'System Settings', icon: <SettingsIcon />, path: '/settings/system', access: isAdmin },
-  ];
-
-  const drawer = (
-    <div>
-      <Toolbar />
-      <Divider />
-      <List>
-        {menuItems.filter(item => item.access).map((item) => (
-          <ListItem 
-            button 
-            key={item.text} 
-            onClick={() => navigate(item.path)}
-            selected={location.pathname === item.path}
-          >
-            <ListItemIcon>{item.icon}</ListItemIcon>
-            <ListItemText primary={item.text} />
-          </ListItem>
-        ))}
-      </List>
-      <Divider />
-      <List>
-        <ListItemButton onClick={handleAnalyticsClick}>
-          <ListItemIcon>
-            <BarChartIcon />
-          </ListItemIcon>
-          <ListItemText primary="Analytics" />
-          {openAnalytics ? <ExpandLess /> : <ExpandMore />}
-        </ListItemButton>
-        <Collapse in={openAnalytics} timeout="auto" unmountOnExit>
-          <List component="div" disablePadding>
-            {analyticsItems.filter(item => item.access).map((item) => (
-              <ListItemButton 
-                key={item.text} 
-                sx={{ pl: 4 }}
-                onClick={() => navigate(item.path)}
-                selected={location.pathname === item.path}
-              >
-                <ListItemIcon>{item.icon}</ListItemIcon>
-                <ListItemText primary={item.text} />
-              </ListItemButton>
-            ))}
-          </List>
-        </Collapse>
-        <ListItemButton onClick={handleSettingsClick}>
-          <ListItemIcon>
-            <SettingsIcon />
-          </ListItemIcon>
-          <ListItemText primary="Settings" />
-          {openSettings ? <ExpandLess /> : <ExpandMore />}
-        </ListItemButton>
-        <Collapse in={openSettings} timeout="auto" unmountOnExit>
-          <List component="div" disablePadding>
-            {settingsItems.filter(item => item.access).map((item) => (
-              <ListItemButton 
-                key={item.text} 
-                sx={{ pl: 4 }}
-                onClick={() => navigate(item.path)}
-                selected={location.pathname === item.path}
-              >
-                <ListItemIcon>{item.icon}</ListItemIcon>
-                <ListItemText primary={item.text} />
-              </ListItemButton>
-            ))}
-          </List>
-        </Collapse>
-      </List>
-    </div>
-  );
 
   return (
-    <Box
-      component="nav"
-      sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}
-    >
-      <Drawer
-        variant="temporary"
-        open={sidebarOpen}
-        sx={{
-          display: { xs: 'block', sm: 'none' },
-          '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
-        }}
-        ModalProps={{
-          keepMounted: true, // Better open performance on mobile.
-        }}
-      >
-        {drawer}
-      </Drawer>
-      <Drawer
-        variant="permanent"
-        sx={{
-          display: { xs: 'none', sm: 'block' },
-          '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
-        }}
-        open
-      >
-        {drawer}
-      </Drawer>
-    </Box>
+    <div className="h-screen w-64 border-r bg-background flex flex-col">
+      <div className="p-6">
+        <h2 className="text-2xl font-bold">AI Caller</h2>
+        <p className="text-sm text-muted-foreground">Cold Calling Agent</p>
+      </div>
+      
+      <nav className="flex-1 px-4 pb-4">
+        <ul className="space-y-1">
+          {navItems.map((item) => (
+            <li key={item.href}>
+              <NavLink
+                to={item.href}
+                className={({ isActive }) => cn(
+                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium",
+                  isActive 
+                    ? "bg-primary text-primary-foreground" 
+                    : "hover:bg-muted text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {item.icon}
+                {item.title}
+              </NavLink>
+            </li>
+          ))}
+        </ul>
+      </nav>
+      
+      <div className="mt-auto p-4 border-t">
+        <div className="flex items-center gap-3 rounded-md bg-muted px-3 py-2">
+          <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground">
+            <span className="text-sm font-medium">AI</span>
+          </div>
+          <div>
+            <p className="text-sm font-medium">AI Cold Caller</p>
+            <p className="text-xs text-muted-foreground">v1.0.0</p>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 

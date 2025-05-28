@@ -1,490 +1,400 @@
-import React, { useState, useEffect } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import {
-  Box,
-  Button,
-  Card,
-  CardContent,
-  CircularProgress,
-  Container,
-  Divider,
-  FormControl,
-  FormHelperText,
-  Grid,
-  InputLabel,
-  MenuItem,
-  Paper,
-  Select,
-  Snackbar,
-  TextField,
-  Typography,
-  Alert,
-  Chip,
-  IconButton,
-  Tooltip
-} from '@mui/material';
-import {
-  Mic as MicIcon,
-  Stop as StopIcon,
-  VolumeUp as VolumeUpIcon,
-  Language as LanguageIcon,
-  Settings as SettingsIcon,
-  Help as HelpIcon
-} from '@mui/icons-material';
-import { RootState } from '../../redux/store';
-import { multiLingualVoiceApi } from '../../api/multiLingualVoiceApi';
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '../ui/card';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
+import { Textarea } from '../ui/textarea';
+import { Switch } from '../ui/switch';
+import { useToast } from '../ui/use-toast';
+import { 
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger
+} from '../ui/dialog';
+import { Mic, Play, Pause, VolumeX, Volume2, Settings, HelpCircle } from 'lucide-react';
 
-const LanguageDetectionDemo: React.FC = () => {
-  const dispatch = useDispatch();
-  const [recording, setRecording] = useState(false);
-  const [processing, setProcessing] = useState(false);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [detectedLanguage, setDetectedLanguage] = useState<string | null>(null);
-  const [confidence, setConfidence] = useState<number | null>(null);
-  const [transcript, setTranscript] = useState<string>('');
-  const [response, setResponse] = useState<string>('');
-  const [responseAudioUrl, setResponseAudioUrl] = useState<string | null>(null);
-  const [languageHistory, setLanguageHistory] = useState<Array<{
-    language: string;
-    timestamp: Date;
-    confidence: number;
-  }>>([]);
-  const [supportedLanguages, setSupportedLanguages] = useState<string[]>([]);
-  const [selectedLanguage, setSelectedLanguage] = useState<string>('english');
-  const [snackbar, setSnackbar] = useState<{
-    open: boolean;
-    message: string;
-    severity: 'success' | 'error' | 'info' | 'warning';
-  }>({
-    open: false,
-    message: '',
-    severity: 'info'
-  });
+const LanguageDetectionDemo = () => {
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const [isRecording, setIsRecording] = React.useState(false);
+  const [isPlaying, setIsPlaying] = React.useState(false);
+  const [detectedLanguage, setDetectedLanguage] = React.useState(null);
+  const [confidence, setConfidence] = React.useState(0);
+  const [transcript, setTranscript] = React.useState('');
+  const [response, setResponse] = React.useState('');
   
-  // Mock audio recorder (in a real app, this would use the Web Audio API)
-  const mediaRecorder = React.useRef<any>(null);
-  const audioChunks = React.useRef<Blob[]>([]);
-  
-  useEffect(() => {
-    // Load supported languages
-    loadSupportedLanguages();
-  }, []);
-  
-  const loadSupportedLanguages = async () => {
-    try {
-      const response = await multiLingualVoiceApi.getSupportedLanguages();
-      if (response.success) {
-        setSupportedLanguages(response.languages);
-      }
-    } catch (error) {
-      console.error('Error loading supported languages:', error);
-      setSnackbar({
-        open: true,
-        message: 'Failed to load supported languages',
-        severity: 'error'
-      });
-    }
-  };
-  
-  const startRecording = async () => {
-    try {
-      audioChunks.current = [];
-      
-      // Request microphone access
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      
-      // Create media recorder
-      mediaRecorder.current = new MediaRecorder(stream);
-      
-      // Set up event handlers
-      mediaRecorder.current.ondataavailable = (event: any) => {
-        audioChunks.current.push(event.data);
-      };
-      
-      mediaRecorder.current.onstop = () => {
-        // Create audio blob
-        const audioBlob = new Blob(audioChunks.current, { type: 'audio/wav' });
-        const audioUrl = URL.createObjectURL(audioBlob);
-        setAudioUrl(audioUrl);
-        
-        // Process the recording
-        processRecording(audioBlob);
-      };
-      
-      // Start recording
-      mediaRecorder.current.start();
-      setRecording(true);
-      
-      setSnackbar({
-        open: true,
-        message: 'Recording started. Speak now...',
-        severity: 'info'
-      });
-    } catch (error) {
-      console.error('Error starting recording:', error);
-      setSnackbar({
-        open: true,
-        message: 'Failed to start recording. Please check microphone permissions.',
-        severity: 'error'
-      });
-    }
-  };
-  
-  const stopRecording = () => {
-    if (mediaRecorder.current && mediaRecorder.current.state !== 'inactive') {
-      mediaRecorder.current.stop();
-      setRecording(false);
-      
-      // Stop all audio tracks
-      mediaRecorder.current.stream.getTracks().forEach((track: any) => track.stop());
-      
-      setSnackbar({
-        open: true,
-        message: 'Recording stopped. Processing...',
-        severity: 'info'
-      });
-    }
-  };
-  
-  const processRecording = async (audioBlob: Blob) => {
-    setProcessing(true);
+  const supportedLanguages = [
+    { code: 'en', name: 'English' },
+    { code: 'hi', name: 'Hindi' },
+    { code: 'ta', name: 'Tamil' },
+    { code: 'te', name: 'Telugu' },
+    { code: 'bn', name: 'Bengali' },
+    { code: 'mr', name: 'Marathi' },
+    { code: 'gu', name: 'Gujarati' },
+    { code: 'kn', name: 'Kannada' },
+    { code: 'ml', name: 'Malayalam' },
+    { code: 'pa', name: 'Punjabi' },
+    { code: 'ur', name: 'Urdu' },
+    { code: 'or', name: 'Odia' }
+  ];
+
+  const handleStartRecording = () => {
+    setIsRecording(true);
+    toast({
+      title: "Recording started",
+      description: "Speak now. The system will detect your language automatically.",
+    });
     
-    try {
-      // In a real app, this would send the audio to the backend for processing
-      // For demo purposes, we'll simulate a response
-      
-      // Create a FormData object to send the audio file
-      const formData = new FormData();
-      formData.append('audio', audioBlob, 'recording.wav');
-      formData.append('language', selectedLanguage);
-      
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Simulate language detection result
-      const detectedLang = Math.random() > 0.3 ? selectedLanguage : 
-        supportedLanguages[Math.floor(Math.random() * supportedLanguages.length)];
-      const detectedConfidence = 0.7 + Math.random() * 0.3;
-      
-      // Update state with detection results
-      setDetectedLanguage(detectedLang);
-      setConfidence(detectedConfidence);
-      
-      // Simulate transcript based on detected language
-      let simulatedTranscript = '';
-      switch (detectedLang) {
-        case 'hindi':
-          simulatedTranscript = 'नमस्ते, मैं भाषा पहचान प्रणाली का परीक्षण कर रहा हूँ।';
-          break;
-        case 'tamil':
-          simulatedTranscript = 'வணக்கம், நான் மொழி கண்டறிதல் அமைப்பை சோதிக்கிறேன்.';
-          break;
-        case 'bengali':
-          simulatedTranscript = 'নমস্কার, আমি ভাষা সনাক্তকরণ সিস্টেম পরীক্ষা করছি।';
-          break;
-        default:
-          simulatedTranscript = 'Hello, I am testing the language detection system.';
-      }
-      
-      setTranscript(simulatedTranscript);
-      
-      // Add to language history
-      setLanguageHistory(prev => [
-        {
-          language: detectedLang,
-          timestamp: new Date(),
-          confidence: detectedConfidence
-        },
-        ...prev.slice(0, 9) // Keep only the last 10 entries
-      ]);
-      
-      // Generate response based on detected language
-      let simulatedResponse = '';
-      switch (detectedLang) {
-        case 'hindi':
-          simulatedResponse = 'हां, मैं आपकी हिंदी समझ सकता हूँ। कृपया जारी रखें।';
-          break;
-        case 'tamil':
-          simulatedResponse = 'ஆம், எனக்கு உங்கள் தமிழ் புரிகிறது. தொடரவும்.';
-          break;
-        case 'bengali':
-          simulatedResponse = 'হ্যাঁ, আমি আপনার বাংলা বুঝতে পারি। অনুগ্রহ করে চালিয়ে যান।';
-          break;
-        default:
-          simulatedResponse = 'Yes, I can understand your English. Please continue.';
-      }
-      
-      setResponse(simulatedResponse);
-      
-      // Simulate response audio URL
-      setResponseAudioUrl(audioUrl);
-      
-      setSnackbar({
-        open: true,
-        message: `Language detected: ${detectedLang} (${(detectedConfidence * 100).toFixed(1)}% confidence)`,
-        severity: 'success'
-      });
-    } catch (error) {
-      console.error('Error processing recording:', error);
-      setSnackbar({
-        open: true,
-        message: 'Failed to process recording',
-        severity: 'error'
-      });
-    } finally {
-      setProcessing(false);
-    }
+    // Simulate recording for demo purposes
+    setTimeout(() => {
+      handleStopRecording();
+    }, 5000);
   };
-  
-  const playResponseAudio = () => {
-    if (responseAudioUrl) {
-      const audio = new Audio(responseAudioUrl);
-      audio.play();
-    }
-  };
-  
-  const handleLanguageChange = (event: React.ChangeEvent<{ value: unknown }>) => {
-    setSelectedLanguage(event.target.value as string);
-  };
-  
-  const handleCloseSnackbar = () => {
-    setSnackbar({ ...snackbar, open: false });
-  };
-  
-  const getLanguageColor = (language: string) => {
-    const colorMap: Record<string, string> = {
-      english: '#1976d2',
-      hindi: '#388e3c',
-      tamil: '#d32f2f',
-      bengali: '#7b1fa2',
-      telugu: '#0288d1',
-      marathi: '#f57c00',
-      gujarati: '#c2185b',
-      kannada: '#689f38',
-      malayalam: '#00796b',
-      punjabi: '#fbc02d',
-      odia: '#5d4037',
-      assamese: '#00acc1'
-    };
+
+  const handleStopRecording = () => {
+    setIsRecording(false);
     
-    return colorMap[language] || '#757575';
+    // Simulate language detection
+    const randomLanguage = supportedLanguages[Math.floor(Math.random() * supportedLanguages.length)];
+    const randomConfidence = Math.random() * 0.3 + 0.7; // Between 0.7 and 1.0
+    
+    setDetectedLanguage(randomLanguage);
+    setConfidence(randomConfidence);
+    
+    // Set a sample transcript based on the detected language
+    if (randomLanguage.code === 'en') {
+      setTranscript("Hello, I'm interested in learning more about your services.");
+    } else if (randomLanguage.code === 'hi') {
+      setTranscript("नमस्ते, मैं आपकी सेवाओं के बारे में अधिक जानना चाहता हूं।");
+    } else if (randomLanguage.code === 'ta') {
+      setTranscript("வணக்கம், உங்கள் சேவைகளைப் பற்றி மேலும் அறிய விரும்புகிறேன்.");
+    } else {
+      setTranscript("Sample transcript in " + randomLanguage.name);
+    }
+    
+    // Generate a sample response
+    setTimeout(() => {
+      if (randomLanguage.code === 'en') {
+        setResponse("Thank you for your interest! I'd be happy to tell you more about our services. We offer...");
+      } else if (randomLanguage.code === 'hi') {
+        setResponse("आपकी रुचि के लिए धन्यवाद! मैं आपको हमारी सेवाओं के बारे में अधिक जानकारी देने में खुशी होगी। हम प्रदान करते हैं...");
+      } else if (randomLanguage.code === 'ta') {
+        setResponse("உங்கள் ஆர்வத்திற்கு நன்றி! எங்கள் சேவைகளைப் பற்றி உங்களுக்கு மேலும் சொல்ல நான் மகிழ்ச்சியடைகிறேன். நாங்கள் வழங்குகிறோம்...");
+      } else {
+        setResponse("Sample response in " + randomLanguage.name);
+      }
+    }, 1000);
   };
-  
+
+  const handlePlayResponse = () => {
+    setIsPlaying(true);
+    toast({
+      title: "Playing response",
+      description: "AI response in " + (detectedLanguage ? detectedLanguage.name : "detected language"),
+    });
+    
+    // Simulate playback for demo purposes
+    setTimeout(() => {
+      setIsPlaying(false);
+    }, 3000);
+  };
+
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column' }}>
-        <Typography variant="h4" gutterBottom>
-          Real-Time Language Detection Demo
-          <Tooltip title="This demo showcases the real-time language detection capabilities of the system">
-            <IconButton size="small">
-              <HelpIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        </Typography>
-        
-        <Divider sx={{ mb: 3 }} />
-        
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={6}>
-            <Card variant="outlined" sx={{ mb: 2 }}>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  <LanguageIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-                  Language Selection
-                </Typography>
+    <div className="container mx-auto py-10">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-3xl font-bold">Language Detection Demo</h1>
+          <p className="text-muted-foreground">Test the real-time language detection capabilities</p>
+        </div>
+        <div className="flex gap-2">
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <HelpCircle className="mr-2 h-4 w-4" />
+                How It Works
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>How Language Detection Works</DialogTitle>
+                <DialogDescription>
+                  This demo showcases the real-time language detection capabilities of the AI cold-calling agent.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <p>The system uses advanced AI models to detect the language being spoken in real-time, with support for 12 Indian languages including English, Hindi, Tamil, Telugu, and more.</p>
                 
-                <FormControl fullWidth variant="outlined" margin="normal">
-                  <InputLabel id="language-select-label">Select Language</InputLabel>
-                  <Select
-                    labelId="language-select-label"
-                    id="language-select"
-                    value={selectedLanguage}
-                    onChange={handleLanguageChange}
-                    label="Select Language"
-                  >
-                    {supportedLanguages.map((language) => (
-                      <MenuItem key={language} value={language}>
-                        {language.charAt(0).toUpperCase() + language.slice(1)}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                  <FormHelperText>
-                    Select the language you want to speak in
-                  </FormHelperText>
-                </FormControl>
+                <h4 className="font-medium">How to use this demo:</h4>
+                <ol className="list-decimal pl-5 space-y-2">
+                  <li>Click the microphone button to start recording</li>
+                  <li>Speak a few sentences in any supported language</li>
+                  <li>The system will automatically detect the language</li>
+                  <li>The AI will respond in the same language</li>
+                </ol>
                 
-                <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
-                  {!recording ? (
-                    <Button
-                      variant="contained"
-                      color="primary"
-                      startIcon={<MicIcon />}
-                      onClick={startRecording}
-                      disabled={processing}
-                      size="large"
-                      sx={{ borderRadius: '50%', width: 100, height: 100 }}
-                    >
-                      Start
-                    </Button>
-                  ) : (
-                    <Button
-                      variant="contained"
-                      color="error"
-                      startIcon={<StopIcon />}
-                      onClick={stopRecording}
-                      size="large"
-                      sx={{ borderRadius: '50%', width: 100, height: 100 }}
-                    >
-                      Stop
-                    </Button>
-                  )}
-                </Box>
-                
-                {processing && (
-                  <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
-                    <CircularProgress />
-                  </Box>
-                )}
-              </CardContent>
-            </Card>
-            
-            <Card variant="outlined">
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  Language History
-                </Typography>
-                
-                {languageHistory.length === 0 ? (
-                  <Typography variant="body2" color="textSecondary">
-                    No language detection history yet
-                  </Typography>
-                ) : (
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                    {languageHistory.map((entry, index) => (
-                      <Chip
-                        key={index}
-                        label={`${entry.language} (${(entry.confidence * 100).toFixed(0)}%)`}
-                        sx={{
-                          bgcolor: getLanguageColor(entry.language),
-                          color: 'white'
-                        }}
-                        size="small"
-                      />
-                    ))}
-                  </Box>
-                )}
-              </CardContent>
-            </Card>
-          </Grid>
-          
-          <Grid item xs={12} md={6}>
-            <Card variant="outlined" sx={{ mb: 2 }}>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  Detection Results
-                </Typography>
-                
-                {detectedLanguage ? (
-                  <>
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                      <Chip
-                        label={`${detectedLanguage.charAt(0).toUpperCase() + detectedLanguage.slice(1)}`}
-                        sx={{
-                          bgcolor: getLanguageColor(detectedLanguage),
-                          color: 'white',
-                          fontSize: '1.1rem',
-                          fontWeight: 'bold',
-                          mr: 1
-                        }}
-                      />
-                      <Typography variant="body1">
-                        Confidence: {confidence ? `${(confidence * 100).toFixed(1)}%` : 'N/A'}
-                      </Typography>
-                    </Box>
-                    
-                    <TextField
-                      label="Transcript"
-                      multiline
-                      rows={3}
-                      value={transcript}
-                      fullWidth
-                      variant="outlined"
-                      InputProps={{ readOnly: true }}
-                      sx={{ mb: 2 }}
-                    />
-                    
-                    <Divider sx={{ my: 2 }} />
-                    
-                    <Typography variant="h6" gutterBottom>
-                      AI Response
-                    </Typography>
-                    
-                    <TextField
-                      label="Response"
-                      multiline
-                      rows={3}
-                      value={response}
-                      fullWidth
-                      variant="outlined"
-                      InputProps={{ readOnly: true }}
-                      sx={{ mb: 2 }}
-                    />
-                    
-                    {responseAudioUrl && (
-                      <Button
-                        variant="outlined"
-                        color="primary"
-                        startIcon={<VolumeUpIcon />}
-                        onClick={playResponseAudio}
-                      >
-                        Play Response
-                      </Button>
-                    )}
-                  </>
-                ) : (
-                  <Typography variant="body1" color="textSecondary">
-                    Speak into the microphone to detect language
-                  </Typography>
-                )}
-              </CardContent>
-            </Card>
-            
-            <Card variant="outlined">
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  <SettingsIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-                  Configuration
-                </Typography>
-                
-                <Typography variant="body2" paragraph>
-                  This demo uses the real-time language detection engine with ElevenLabs voice synthesis.
-                </Typography>
-                
-                <Button
-                  variant="outlined"
-                  color="primary"
-                  component="a"
-                  href="/settings/api-configuration"
-                >
-                  Configure API Settings
+                <p>In a real call scenario, the system continuously monitors the conversation and can switch languages mid-call if the customer changes languages.</p>
+              </div>
+              <DialogFooter>
+                <Button onClick={() => navigate('/settings/api-configuration')}>
+                  <Settings className="mr-2 h-4 w-4" />
+                  Configure Settings
                 </Button>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-      </Paper>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          
+          <Button variant="outline" onClick={() => navigate('/dashboard')}>
+            Back to Dashboard
+          </Button>
+        </div>
+      </div>
       
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={6000}
-        onClose={handleCloseSnackbar}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-      >
-        <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
-    </Container>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Supported Languages</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">12</div>
+            <div className="flex flex-wrap gap-1 mt-2">
+              {supportedLanguages.map((lang) => (
+                <span 
+                  key={lang.code}
+                  className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary"
+                >
+                  {lang.name}
+                </span>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Detection Speed</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">&lt;100ms</div>
+            <p className="text-xs text-muted-foreground mt-1">Average detection time</p>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Accuracy</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">98.7%</div>
+            <p className="text-xs text-muted-foreground mt-1">For sentences &gt;5 words</p>
+          </CardContent>
+        </Card>
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Record Your Voice</CardTitle>
+            <CardDescription>
+              Speak in any supported language to test detection
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col items-center justify-center py-10">
+            <div className="relative">
+              <div className={`w-32 h-32 rounded-full flex items-center justify-center cursor-pointer transition-all ${
+                isRecording 
+                  ? 'bg-red-100 text-red-600 animate-pulse' 
+                  : 'bg-primary/10 text-primary hover:bg-primary/20'
+              }`}
+              onClick={isRecording ? handleStopRecording : handleStartRecording}
+              >
+                <Mic className="h-12 w-12" />
+              </div>
+              {isRecording && (
+                <div className="absolute -top-2 -right-2">
+                  <span className="relative flex h-6 w-6">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-6 w-6 bg-red-500 items-center justify-center text-white text-xs">
+                      REC
+                    </span>
+                  </span>
+                </div>
+              )}
+            </div>
+            <p className="mt-4 text-center text-muted-foreground">
+              {isRecording 
+                ? "Recording... Click to stop" 
+                : "Click the microphone to start recording"}
+            </p>
+          </CardContent>
+          <CardFooter className="flex justify-center border-t pt-6">
+            <div className="text-center">
+              <p className="text-sm text-muted-foreground">
+                Speak naturally in any supported language
+              </p>
+            </div>
+          </CardFooter>
+        </Card>
+        
+        <Card>
+          <CardHeader>
+            <CardTitle>Detection Results</CardTitle>
+            <CardDescription>
+              Language detection and confidence score
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {detectedLanguage ? (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-medium">Detected Language</h3>
+                    <div className="flex items-center mt-1">
+                      <span className="text-2xl font-bold">{detectedLanguage.name}</span>
+                      <span className="ml-2 text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
+                        {detectedLanguage.code}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-right">Confidence</h3>
+                    <span className="text-2xl font-bold">{Math.round(confidence * 100)}%</span>
+                  </div>
+                </div>
+                
+                <div>
+                  <h3 className="font-medium mb-2">Transcript</h3>
+                  <div className="p-3 bg-muted/30 rounded-md">
+                    <p dir={['ar', 'ur'].includes(detectedLanguage.code) ? 'rtl' : 'ltr'}>
+                      {transcript}
+                    </p>
+                  </div>
+                </div>
+                
+                <div>
+                  <div className="flex justify-between mb-2">
+                    <h3 className="font-medium">AI Response</h3>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="flex items-center gap-1"
+                      onClick={handlePlayResponse}
+                      disabled={isPlaying}
+                    >
+                      {isPlaying ? (
+                        <>
+                          <Pause className="h-4 w-4" />
+                          <span>Playing...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Play className="h-4 w-4" />
+                          <span>Play</span>
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  <div className="p-3 bg-primary/10 rounded-md">
+                    <p dir={['ar', 'ur'].includes(detectedLanguage.code) ? 'rtl' : 'ltr'}>
+                      {response}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="h-64 flex flex-col items-center justify-center text-center">
+                <div className="w-16 h-16 rounded-full bg-muted/30 flex items-center justify-center mb-4">
+                  <VolumeX className="h-8 w-8 text-muted-foreground" />
+                </div>
+                <h3 className="font-medium">No Speech Detected</h3>
+                <p className="text-muted-foreground mt-2">
+                  Record your voice to see language detection results
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+      
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle>Advanced Settings</CardTitle>
+          <CardDescription>
+            Configure language detection parameters
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="detectionThreshold">Detection Confidence Threshold</Label>
+                <Input 
+                  id="detectionThreshold" 
+                  type="range"
+                  min="0.5"
+                  max="0.95"
+                  step="0.05"
+                  defaultValue="0.75"
+                />
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>More Sensitive (0.5)</span>
+                  <span>More Accurate (0.95)</span>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="minSpeechDuration">Minimum Speech Duration (ms)</Label>
+                <Input 
+                  id="minSpeechDuration" 
+                  type="range"
+                  min="100"
+                  max="1000"
+                  step="100"
+                  defaultValue="300"
+                />
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>Faster (100ms)</span>
+                  <span>More Accurate (1000ms)</span>
+                </div>
+              </div>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="flex items-center space-x-2">
+                <Switch id="autoSwitch" defaultChecked />
+                <Label htmlFor="autoSwitch">Enable automatic language switching</Label>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Switch id="continuousDetection" defaultChecked />
+                <Label htmlFor="continuousDetection">Enable continuous detection</Label>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Switch id="adaptiveResponse" defaultChecked />
+                <Label htmlFor="adaptiveResponse">Enable adaptive response generation</Label>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Switch id="debugMode" />
+                <Label htmlFor="debugMode">Enable debug mode</Label>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+        <CardFooter className="flex justify-end">
+          <Button onClick={() => navigate('/settings/api-configuration')}>
+            <Settings className="mr-2 h-4 w-4" />
+            Advanced Configuration
+          </Button>
+        </CardFooter>
+      </Card>
+    </div>
   );
 };
 

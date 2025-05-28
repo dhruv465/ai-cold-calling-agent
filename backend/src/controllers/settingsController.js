@@ -1,231 +1,234 @@
-// src/controllers/settingsController.js
-const apiConfigService = require('../services/apiConfigService');
-const elevenLabsService = require('../services/elevenLabsService');
-const languageDetectionService = require('../services/languageDetectionService');
+const crypto = require('crypto');
+const Settings = require('../models/Settings');
+const { validateApiKey } = require('../services/apiConfigService');
 const logger = require('../utils/logger');
 
 /**
- * Controller for handling API configuration settings
+ * Settings Controller
+ * Handles all API configuration and settings management
  */
-class SettingsController {
-  /**
-   * Get API credentials
-   * @param {object} req - Request object
-   * @param {object} res - Response object
-   * @returns {Promise<void>}
-   */
-  async getApiCredentials(req, res) {
-    try {
-      const credentials = await apiConfigService.loadCredentials();
-      
-      // Get service status
-      const status = apiConfigService.getAllServiceStatus();
-      
-      return res.status(200).json({
-        success: true,
-        credentials,
-        status
-      });
-    } catch (error) {
-      logger.error('Error getting API credentials:', error);
-      return res.status(500).json({
+
+// Encryption settings
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'default-key-please-change-in-production';
+const ENCRYPTION_ALGORITHM = 'aes-256-cbc';
+
+// Helper function to encrypt sensitive data
+const encryptData = (text) => {
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv(ENCRYPTION_ALGORITHM, Buffer.from(ENCRYPTION_KEY), iv);
+  let encrypted = cipher.update(text);
+  encrypted = Buffer.concat([encrypted, cipher.final()]);
+  return { iv: iv.toString('hex'), encryptedData: encrypted.toString('hex') };
+};
+
+// Helper function to decrypt sensitive data
+const decryptData = (iv, encryptedData) => {
+  const decipher = crypto.createDecipheriv(
+    ENCRYPTION_ALGORITHM, 
+    Buffer.from(ENCRYPTION_KEY), 
+    Buffer.from(iv, 'hex')
+  );
+  let decrypted = decipher.update(Buffer.from(encryptedData, 'hex'));
+  decrypted = Buffer.concat([decrypted, decipher.final()]);
+  return decrypted.toString();
+};
+
+/**
+ * Get all settings
+ * Returns all settings with sensitive data masked
+ */
+exports.getAllSettings = async (req, res) => {
+  try {
+    const settings = await Settings.find({ userId: req.user.id });
+    
+    // Mask sensitive data
+    const maskedSettings = settings.map(setting => {
+      const settingObj = setting.toObject();
+      if (settingObj.isEncrypted && settingObj.value) {
+        settingObj.value = '********';
+      }
+      return settingObj;
+    });
+    
+    res.status(200).json({
+      success: true,
+      data: maskedSettings
+    });
+  } catch (error) {
+    logger.error(`Error getting settings: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      error: 'Server error while retrieving settings'
+    });
+  }
+};
+
+/**
+ * Get settings by category
+ * Returns settings for a specific category with sensitive data masked
+ */
+exports.getSettingsByCategory = async (req, res) => {
+  try {
+    const { category } = req.params;
+    
+    const settings = await Settings.find({ 
+      userId: req.user.id,
+      category
+    });
+    
+    // Mask sensitive data
+    const maskedSettings = settings.map(setting => {
+      const settingObj = setting.toObject();
+      if (settingObj.isEncrypted && settingObj.value) {
+        settingObj.value = '********';
+      }
+      return settingObj;
+    });
+    
+    res.status(200).json({
+      success: true,
+      data: maskedSettings
+    });
+  } catch (error) {
+    logger.error(`Error getting settings by category: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      error: 'Server error while retrieving settings'
+    });
+  }
+};
+
+/**
+ * Update settings
+ * Updates multiple settings at once
+ */
+exports.updateSettings = async (req, res) => {
+  try {
+    const { settings } = req.body;
+    
+    if (!Array.isArray(settings)) {
+      return res.status(400).json({
         success: false,
-        message: 'Failed to get API credentials',
-        error: error.message
+        error: 'Settings must be provided as an array'
       });
     }
-  }
-
-  /**
-   * Save API credentials for a service
-   * @param {object} req - Request object
-   * @param {object} res - Response object
-   * @returns {Promise<void>}
-   */
-  async saveCredentials(req, res) {
-    try {
-      const { service, credentials } = req.body;
+    
+    const updatePromises = settings.map(async (setting) => {
+      const { key, value, category, isEncrypted = false } = setting;
       
-      if (!service || !credentials) {
-        return res.status(400).json({
-          success: false,
-          message: 'Service name and credentials are required'
-        });
+      if (!key || value === undefined || !category) {
+        throw new Error('Missing required fields: key, value, or category');
       }
       
-      const result = await apiConfigService.setServiceCredentials(service, credentials);
+      let processedValue = value;
+      let encryptionData = {};
       
-      if (result) {
-        // Initialize service with new credentials if applicable
-        switch (service) {
-          case 'elevenlabs':
-            await elevenLabsService.initialize(credentials);
-            break;
-          case 'languageDetection':
-            await languageDetectionService.initialize(credentials);
-            break;
+      // Encrypt sensitive data if needed
+      if (isEncrypted && value !== '********') {
+        encryptionData = encryptData(value);
+        processedValue = JSON.stringify(encryptionData);
+      }
+      
+      // Update or create setting
+      const updatedSetting = await Settings.findOneAndUpdate(
+        { 
+          userId: req.user.id,
+          key,
+          category
+        },
+        {
+          userId: req.user.id,
+          key,
+          value: processedValue,
+          category,
+          isEncrypted,
+          updatedAt: Date.now()
+        },
+        { 
+          new: true, 
+          upsert: true 
         }
-        
-        return res.status(200).json({
-          success: true,
-          message: `${service} credentials saved successfully`
-        });
-      } else {
-        return res.status(500).json({
-          success: false,
-          message: `Failed to save ${service} credentials`
-        });
-      }
-    } catch (error) {
-      logger.error('Error saving API credentials:', error);
-      return res.status(500).json({
+      );
+      
+      return updatedSetting;
+    });
+    
+    await Promise.all(updatePromises);
+    
+    res.status(200).json({
+      success: true,
+      message: 'Settings updated successfully'
+    });
+  } catch (error) {
+    logger.error(`Error updating settings: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      error: `Server error while updating settings: ${error.message}`
+    });
+  }
+};
+
+/**
+ * Validate API key
+ * Tests if an API key is valid for a specific service
+ */
+exports.validateApiKey = async (req, res) => {
+  try {
+    const { service, apiKey } = req.body;
+    
+    if (!service || !apiKey) {
+      return res.status(400).json({
         success: false,
-        message: 'Failed to save API credentials',
-        error: error.message
+        error: 'Service and API key are required'
       });
     }
+    
+    const validationResult = await validateApiKey(service, apiKey);
+    
+    res.status(200).json({
+      success: validationResult.success,
+      message: validationResult.message,
+      data: validationResult.data
+    });
+  } catch (error) {
+    logger.error(`Error validating API key: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      error: 'Server error while validating API key'
+    });
   }
+};
 
-  /**
-   * Validate API credentials for a service
-   * @param {object} req - Request object
-   * @param {object} res - Response object
-   * @returns {Promise<void>}
-   */
-  async validateCredentials(req, res) {
-    try {
-      const { service, credentials } = req.body;
-      
-      if (!service || !credentials) {
-        return res.status(400).json({
-          success: false,
-          message: 'Service name and credentials are required'
-        });
-      }
-      
-      const result = await apiConfigService.validateServiceCredentials(service, credentials);
-      
-      // Update service status
-      apiConfigService.updateServiceStatus(service, {
-        valid: result.valid,
-        message: result.message,
-        lastChecked: new Date().toISOString()
-      });
-      
-      return res.status(200).json({
-        success: true,
-        valid: result.valid,
-        message: result.message
-      });
-    } catch (error) {
-      logger.error('Error validating API credentials:', error);
-      return res.status(500).json({
+/**
+ * Delete setting
+ * Removes a specific setting
+ */
+exports.deleteSetting = async (req, res) => {
+  try {
+    const { key, category } = req.params;
+    
+    const deletedSetting = await Settings.findOneAndDelete({
+      userId: req.user.id,
+      key,
+      category
+    });
+    
+    if (!deletedSetting) {
+      return res.status(404).json({
         success: false,
-        message: 'Failed to validate API credentials',
-        error: error.message
+        error: 'Setting not found'
       });
     }
+    
+    res.status(200).json({
+      success: true,
+      message: 'Setting deleted successfully'
+    });
+  } catch (error) {
+    logger.error(`Error deleting setting: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      error: 'Server error while deleting setting'
+    });
   }
-
-  /**
-   * Create backup of API credentials
-   * @param {object} req - Request object
-   * @param {object} res - Response object
-   * @returns {Promise<void>}
-   */
-  async createBackup(req, res) {
-    try {
-      const backupPath = await apiConfigService.createBackup();
-      
-      return res.status(200).json({
-        success: true,
-        message: 'Backup created successfully',
-        backupPath
-      });
-    } catch (error) {
-      logger.error('Error creating backup:', error);
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to create backup',
-        error: error.message
-      });
-    }
-  }
-
-  /**
-   * Get available backups
-   * @param {object} req - Request object
-   * @param {object} res - Response object
-   * @returns {Promise<void>}
-   */
-  async getAvailableBackups(req, res) {
-    try {
-      const backups = await apiConfigService.getAvailableBackups();
-      
-      return res.status(200).json({
-        success: true,
-        backups
-      });
-    } catch (error) {
-      logger.error('Error getting available backups:', error);
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to get available backups',
-        error: error.message
-      });
-    }
-  }
-
-  /**
-   * Restore from backup
-   * @param {object} req - Request object
-   * @param {object} res - Response object
-   * @returns {Promise<void>}
-   */
-  async restoreFromBackup(req, res) {
-    try {
-      const { backupPath } = req.body;
-      
-      if (!backupPath) {
-        return res.status(400).json({
-          success: false,
-          message: 'Backup path is required'
-        });
-      }
-      
-      const result = await apiConfigService.restoreFromBackup(backupPath);
-      
-      if (result) {
-        // Reload credentials and reinitialize services
-        const credentials = await apiConfigService.loadCredentials();
-        
-        if (credentials.elevenlabs) {
-          await elevenLabsService.initialize(credentials.elevenlabs);
-        }
-        
-        if (credentials.languageDetection) {
-          await languageDetectionService.initialize(credentials.languageDetection);
-        }
-        
-        return res.status(200).json({
-          success: true,
-          message: 'Credentials restored successfully from backup'
-        });
-      } else {
-        return res.status(500).json({
-          success: false,
-          message: 'Failed to restore from backup'
-        });
-      }
-    } catch (error) {
-      logger.error('Error restoring from backup:', error);
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to restore from backup',
-        error: error.message
-      });
-    }
-  }
-}
-
-module.exports = new SettingsController();
+};

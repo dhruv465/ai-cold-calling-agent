@@ -1,285 +1,240 @@
-// src/components/calls/CallList.tsx
-import React, { useEffect, useState } from 'react';
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '../ui/card';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
+import { useToast } from '../ui/use-toast';
 import { 
-  Box, 
-  Typography, 
-  Paper, 
   Table, 
   TableBody, 
   TableCell, 
-  TableContainer, 
   TableHead, 
-  TableRow,
-  TablePagination,
-  Button,
-  Chip,
-  IconButton,
-  Tooltip,
-  TextField,
-  InputAdornment,
-  CircularProgress,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem
-} from '@mui/material';
-import { useDispatch, useSelector } from 'react-redux';
-import { AppDispatch, RootState } from '../../redux/store';
-import { fetchCalls } from '../../redux/slices/callSlice';
-import { useNavigate } from 'react-router-dom';
-import { format } from 'date-fns';
+  TableHeader, 
+  TableRow 
+} from '../ui/table';
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from '../ui/dropdown-menu';
+import { MoreHorizontal, Phone, Calendar, Clock, User, FileText } from 'lucide-react';
+import { Badge } from '../ui/badge';
 
-// Icons
-import SearchIcon from '@mui/icons-material/Search';
-import VisibilityIcon from '@mui/icons-material/Visibility';
-import PhoneIcon from '@mui/icons-material/Phone';
-import HeadsetIcon from '@mui/icons-material/Headset';
-
-const CallList: React.FC = () => {
-  const dispatch = useDispatch<AppDispatch>();
+const CallList = () => {
   const navigate = useNavigate();
-  const { calls, isLoading, error, totalCalls, currentPage, totalPages } = useSelector((state: RootState) => state.calls);
+  const { toast } = useToast();
+  const [searchQuery, setSearchQuery] = React.useState('');
   
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [campaignFilter, setCampaignFilter] = useState('');
-  const [dateRange, setDateRange] = useState({
-    startDate: '',
-    endDate: ''
-  });
+  // Mock data for calls
+  const calls = [
+    { 
+      id: 'C12345', 
+      leadName: 'Rahul Sharma', 
+      phoneNumber: '+91 98765 43210', 
+      campaignName: 'Insurance Renewal',
+      time: '10:32 AM', 
+      date: '2025-05-28',
+      duration: '4:12',
+      status: 'Completed', 
+      outcome: 'Interested',
+      agent: 'Agent 001'
+    },
+    { 
+      id: 'C12346', 
+      leadName: 'Priya Patel', 
+      phoneNumber: '+91 87654 32109', 
+      campaignName: 'Insurance Renewal',
+      time: '10:15 AM', 
+      date: '2025-05-28',
+      duration: '3:45',
+      status: 'Completed', 
+      outcome: 'Callback',
+      agent: 'Agent 002'
+    },
+    { 
+      id: 'C12347', 
+      leadName: 'Amit Kumar', 
+      phoneNumber: '+91 76543 21098', 
+      campaignName: 'New Product Introduction',
+      time: '9:58 AM', 
+      date: '2025-05-28',
+      duration: '2:30',
+      status: 'Completed', 
+      outcome: 'Not Interested',
+      agent: 'Agent 001'
+    },
+    { 
+      id: 'C12348', 
+      leadName: 'Deepa Singh', 
+      phoneNumber: '+91 65432 10987', 
+      campaignName: 'New Product Introduction',
+      time: '9:45 AM', 
+      date: '2025-05-28',
+      duration: '5:18',
+      status: 'Completed', 
+      outcome: 'Interested',
+      agent: 'Agent 003'
+    },
+    { 
+      id: 'C12349', 
+      leadName: 'Vikram Mehta', 
+      phoneNumber: '+91 54321 09876', 
+      campaignName: 'Customer Feedback Survey',
+      time: '9:30 AM', 
+      date: '2025-05-28',
+      duration: '3:22',
+      status: 'Completed', 
+      outcome: 'Not Interested',
+      agent: 'Agent 002'
+    },
+  ];
   
-  useEffect(() => {
-    dispatch(fetchCalls({ 
-      page: page + 1, 
-      limit: rowsPerPage,
-      status: statusFilter,
-      campaign_id: campaignFilter ? parseInt(campaignFilter) : undefined,
-      start_date: dateRange.startDate || undefined,
-      end_date: dateRange.endDate || undefined
-    }));
-  }, [dispatch, page, rowsPerPage, statusFilter, campaignFilter, dateRange]);
-
-  const handleChangePage = (event: unknown, newPage: number) => {
-    setPage(newPage);
+  const handleDelete = (id) => {
+    toast({
+      title: "Call record deleted",
+      description: `Call record ${id} has been deleted.`,
+    });
   };
-
-  const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setRowsPerPage(parseInt(event.target.value, 10));
-    setPage(0);
-  };
-
-  const handleSearch = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchTerm(event.target.value);
-    setPage(0);
-  };
-
-  const handleStatusFilterChange = (event: React.ChangeEvent<{ value: unknown }>) => {
-    setStatusFilter(event.target.value as string);
-    setPage(0);
-  };
-
-  const handleCampaignFilterChange = (event: React.ChangeEvent<{ value: unknown }>) => {
-    setCampaignFilter(event.target.value as string);
-    setPage(0);
-  };
-
-  const handleViewCall = (id: number) => {
-    navigate(`/calls/${id}`);
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'success';
-      case 'in-progress':
-        return 'info';
-      case 'failed':
-        return 'error';
-      case 'no-answer':
-        return 'warning';
-      default:
-        return 'default';
-    }
+  
+  const handleScheduleCallback = (id, leadName) => {
+    toast({
+      title: "Callback scheduled",
+      description: `Callback for ${leadName} has been scheduled.`,
+    });
   };
 
   return (
-    <Box sx={{ py: 2 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4">Calls</Typography>
-      </Box>
+    <div className="container mx-auto py-10">
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-3xl font-bold">Call Records</h1>
+        <Button onClick={() => navigate('/calls/new')}>
+          <Phone className="mr-2 h-4 w-4" />
+          New Call
+        </Button>
+      </div>
       
-      <Paper sx={{ width: '100%', mb: 2 }}>
-        <Box sx={{ p: 2, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
-          <TextField
-            variant="outlined"
-            placeholder="Search calls..."
-            size="small"
-            value={searchTerm}
-            onChange={handleSearch}
-            sx={{ width: 250 }}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon />
-                </InputAdornment>
-              ),
-            }}
-          />
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent Calls</CardTitle>
+          <CardDescription>
+            View and manage your recent call activities
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col md:flex-row gap-4 mb-6">
+            <div className="relative flex-1">
+              <Input
+                placeholder="Search calls..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline">Today</Button>
+              <Button variant="outline">This Week</Button>
+              <Button variant="outline">This Month</Button>
+            </div>
+          </div>
           
-          <FormControl size="small" sx={{ minWidth: 150 }}>
-            <InputLabel id="status-filter-label">Status</InputLabel>
-            <Select
-              labelId="status-filter-label"
-              id="status-filter"
-              value={statusFilter}
-              label="Status"
-              onChange={handleStatusFilterChange}
-            >
-              <MenuItem value="">All</MenuItem>
-              <MenuItem value="completed">Completed</MenuItem>
-              <MenuItem value="in-progress">In Progress</MenuItem>
-              <MenuItem value="failed">Failed</MenuItem>
-              <MenuItem value="no-answer">No Answer</MenuItem>
-            </Select>
-          </FormControl>
-          
-          <FormControl size="small" sx={{ minWidth: 150 }}>
-            <InputLabel id="campaign-filter-label">Campaign</InputLabel>
-            <Select
-              labelId="campaign-filter-label"
-              id="campaign-filter"
-              value={campaignFilter}
-              label="Campaign"
-              onChange={handleCampaignFilterChange}
-            >
-              <MenuItem value="">All Campaigns</MenuItem>
-              {/* Campaign options would be dynamically loaded here */}
-            </Select>
-          </FormControl>
-          
-          <TextField
-            label="Start Date"
-            type="date"
-            size="small"
-            InputLabelProps={{ shrink: true }}
-            value={dateRange.startDate}
-            onChange={(e) => setDateRange({ ...dateRange, startDate: e.target.value })}
-          />
-          
-          <TextField
-            label="End Date"
-            type="date"
-            size="small"
-            InputLabelProps={{ shrink: true }}
-            value={dateRange.endDate}
-            onChange={(e) => setDateRange({ ...dateRange, endDate: e.target.value })}
-          />
-        </Box>
-        
-        <TableContainer>
-          <Table sx={{ minWidth: 750 }} aria-labelledby="tableTitle">
-            <TableHead>
-              <TableRow>
-                <TableCell>Lead</TableCell>
-                <TableCell>Campaign</TableCell>
-                <TableCell>Start Time</TableCell>
-                <TableCell>Duration</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Outcome</TableCell>
-                <TableCell align="right">Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {isLoading && calls.length === 0 ? (
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={7} align="center">
-                    <CircularProgress />
-                  </TableCell>
+                  <TableHead>Lead</TableHead>
+                  <TableHead>Campaign</TableHead>
+                  <TableHead>Time</TableHead>
+                  <TableHead>Duration</TableHead>
+                  <TableHead>Outcome</TableHead>
+                  <TableHead>Agent</TableHead>
+                  <TableHead className="w-[80px]"></TableHead>
                 </TableRow>
-              ) : error ? (
-                <TableRow>
-                  <TableCell colSpan={7} align="center">
-                    <Typography color="error">{error}</Typography>
-                  </TableCell>
-                </TableRow>
-              ) : calls.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} align="center">
-                    <Typography>No calls found</Typography>
-                  </TableCell>
-                </TableRow>
-              ) : (
-                calls.map((call) => (
-                  <TableRow
-                    hover
-                    key={call.id}
-                    onClick={() => handleViewCall(call.id)}
-                    sx={{ cursor: 'pointer' }}
-                  >
-                    <TableCell>
-                      {call.CampaignLead?.Lead ? 
-                        `${call.CampaignLead.Lead.first_name} ${call.CampaignLead.Lead.last_name}` : 
-                        'Unknown Lead'}
+              </TableHeader>
+              <TableBody>
+                {calls.map((call) => (
+                  <TableRow key={call.id}>
+                    <TableCell className="font-medium">
+                      <div>
+                        <div>{call.leadName}</div>
+                        <div className="text-xs text-muted-foreground">{call.phoneNumber}</div>
+                      </div>
                     </TableCell>
-                    <TableCell>{call.CampaignLead?.Campaign?.name || 'Unknown Campaign'}</TableCell>
+                    <TableCell>{call.campaignName}</TableCell>
                     <TableCell>
-                      {call.start_time ? format(new Date(call.start_time), 'MMM dd, yyyy HH:mm') : 'N/A'}
+                      <div className="flex items-center">
+                        <Clock className="mr-2 h-4 w-4 text-muted-foreground" />
+                        <span>{call.time}</span>
+                      </div>
                     </TableCell>
-                    <TableCell>{call.duration ? `${call.duration}s` : 'N/A'}</TableCell>
+                    <TableCell>{call.duration}</TableCell>
                     <TableCell>
-                      <Chip 
-                        label={call.status} 
-                        color={getStatusColor(call.status) as "success" | "info" | "error" | "warning" | "default"} 
-                        size="small" 
-                      />
+                      <Badge className={
+                        call.outcome === 'Interested' ? 'bg-green-100 text-green-800 hover:bg-green-100' : 
+                        call.outcome === 'Callback' ? 'bg-blue-100 text-blue-800 hover:bg-blue-100' : 
+                        'bg-gray-100 text-gray-800 hover:bg-gray-100'
+                      }>
+                        {call.outcome}
+                      </Badge>
                     </TableCell>
                     <TableCell>
-                      {call.outcome || 'N/A'}
+                      <div className="flex items-center">
+                        <User className="mr-2 h-4 w-4 text-muted-foreground" />
+                        <span>{call.agent}</span>
+                      </div>
                     </TableCell>
-                    <TableCell align="right">
-                      <Tooltip title="View Details">
-                        <IconButton 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleViewCall(call.id);
-                          }}
-                        >
-                          <VisibilityIcon />
-                        </IconButton>
-                      </Tooltip>
-                      {call.recording_url && (
-                        <Tooltip title="Listen to Recording">
-                          <IconButton 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              // Handle playing recording
-                            }}
-                          >
-                            <HeadsetIcon />
-                          </IconButton>
-                        </Tooltip>
-                      )}
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-8 w-8 p-0">
+                            <span className="sr-only">Open menu</span>
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                          <DropdownMenuItem onClick={() => navigate(`/calls/${call.id}`)}>
+                            <FileText className="mr-2 h-4 w-4" />
+                            View details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => navigate(`/calls/${call.id}/transcript`)}>
+                            <FileText className="mr-2 h-4 w-4" />
+                            View transcript
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleScheduleCallback(call.id, call.leadName)}>
+                            <Calendar className="mr-2 h-4 w-4" />
+                            Schedule callback
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => handleDelete(call.id)} className="text-red-600">
+                            Delete record
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
-        
-        <TablePagination
-          rowsPerPageOptions={[5, 10, 25]}
-          component="div"
-          count={totalCalls}
-          rowsPerPage={rowsPerPage}
-          page={page}
-          onPageChange={handleChangePage}
-          onRowsPerPageChange={handleChangeRowsPerPage}
-        />
-      </Paper>
-    </Box>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+        <CardFooter className="flex justify-between">
+          <div className="text-sm text-muted-foreground">
+            Showing <strong>5</strong> of <strong>25</strong> calls
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" disabled>
+              Previous
+            </Button>
+            <Button variant="outline" size="sm">
+              Next
+            </Button>
+          </div>
+        </CardFooter>
+      </Card>
+    </div>
   );
 };
 

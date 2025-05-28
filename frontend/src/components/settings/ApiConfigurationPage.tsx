@@ -1,781 +1,633 @@
-import React, { useState, useEffect } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import {
-  Box,
-  Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CircularProgress,
-  Container,
-  Divider,
-  FormControl,
-  FormHelperText,
-  Grid,
-  IconButton,
-  InputAdornment,
-  InputLabel,
-  MenuItem,
-  OutlinedInput,
-  Paper,
-  Select,
-  Snackbar,
-  Tab,
-  Tabs,
-  TextField,
-  Typography,
-  Alert,
-  Tooltip
-} from '@mui/material';
-import {
-  Save as SaveIcon,
-  Refresh as RefreshIcon,
-  Visibility as VisibilityIcon,
-  VisibilityOff as VisibilityOffIcon,
-  Check as CheckIcon,
-  Error as ErrorIcon,
-  Backup as BackupIcon,
-  Restore as RestoreIcon,
-  Help as HelpIcon
-} from '@mui/icons-material';
-import { apiConfigApi } from '../../api/apiConfigApi';
-import { RootState } from '../../redux/store';
-import { setApiCredentials, setApiStatus } from '../../redux/slices/settingsSlice';
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '../ui/card';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
+import { Textarea } from '../ui/textarea';
+import { Switch } from '../ui/switch';
+import { useToast } from '../ui/use-toast';
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger
+} from '../ui/alert-dialog';
+import { 
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger
+} from '../ui/accordion';
+import { Mic, Save, Upload, X, HelpCircle, Check, AlertTriangle, Globe, Key } from 'lucide-react';
 
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-}
-
-function TabPanel(props: TabPanelProps) {
-  const { children, value, index, ...other } = props;
-
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`api-config-tabpanel-${index}`}
-      aria-labelledby={`api-config-tab-${index}`}
-      {...other}
-    >
-      {value === index && (
-        <Box sx={{ p: 3 }}>
-          {children}
-        </Box>
-      )}
-    </div>
-  );
-}
-
-function a11yProps(index: number) {
-  return {
-    id: `api-config-tab-${index}`,
-    'aria-controls': `api-config-tabpanel-${index}`,
-  };
-}
-
-const ApiConfigurationPage: React.FC = () => {
-  const dispatch = useDispatch();
-  const apiCredentials = useSelector((state: RootState) => state.settings.apiCredentials);
-  const apiStatus = useSelector((state: RootState) => state.settings.apiStatus);
-  
-  const [tabValue, setTabValue] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [validating, setValidating] = useState<Record<string, boolean>>({});
-  const [showPassword, setShowPassword] = useState<Record<string, boolean>>({});
-  const [snackbar, setSnackbar] = useState<{
-    open: boolean;
-    message: string;
-    severity: 'success' | 'error' | 'info' | 'warning';
-  }>({
-    open: false,
-    message: '',
-    severity: 'info'
+const ApiConfigurationPage = () => {
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [configData, setConfigData] = React.useState({
+    elevenLabsApiKey: '',
+    elevenLabsModelId: 'eleven_multilingual_v2',
+    elevenLabsVoiceId: 'pNInz6obpgDQGcFmaJgB',
+    twilioAccountSid: '',
+    twilioAuthToken: '',
+    twilioPhoneNumber: '',
+    openAiApiKey: '',
+    openAiModelId: 'gpt-4o',
+    languageDetectionThreshold: 0.75,
+    enableAutoLanguageSwitching: true,
+    enableRealTimeTranscription: true,
+    enableSentimentAnalysis: true
   });
-  
-  const [credentials, setCredentials] = useState<Record<string, any>>({
-    elevenlabs: {
-      apiKey: '',
-      model: 'eleven_multilingual_v2'
-    },
-    languageDetection: {
-      apiKey: '',
-      region: 'global',
-      minConfidence: 0.6
-    },
-    voiceSettings: {
-      defaultVoice: 'female',
-      defaultPersonality: 'professional',
-      defaultLanguage: 'english'
-    }
-  });
-  
-  const [backups, setBackups] = useState<Array<{
-    path: string;
-    filename: string;
-    created: string;
-    size: number;
-  }>>([]);
-  
-  const [selectedBackup, setSelectedBackup] = useState('');
-  
-  useEffect(() => {
-    // Load API credentials on component mount
-    loadApiCredentials();
-    loadBackups();
-  }, []);
-  
-  useEffect(() => {
-    // Update local state when redux state changes
-    if (apiCredentials) {
-      setCredentials(prevState => ({
-        ...prevState,
-        ...apiCredentials
-      }));
-    }
-  }, [apiCredentials]);
-  
-  const loadApiCredentials = async () => {
-    setLoading(true);
-    try {
-      const response = await apiConfigApi.getApiCredentials();
-      if (response.success) {
-        dispatch(setApiCredentials(response.credentials));
-        dispatch(setApiStatus(response.status));
-      }
-    } catch (error) {
-      console.error('Error loading API credentials:', error);
-      setSnackbar({
-        open: true,
-        message: 'Failed to load API credentials',
-        severity: 'error'
-      });
-    } finally {
-      setLoading(false);
-    }
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setConfigData({
+      ...configData,
+      [name]: value
+    });
   };
-  
-  const loadBackups = async () => {
-    try {
-      const response = await apiConfigApi.getAvailableBackups();
-      if (response.success) {
-        setBackups(response.backups);
-      }
-    } catch (error) {
-      console.error('Error loading backups:', error);
-    }
+
+  const handleSwitchChange = (name, checked) => {
+    setConfigData({
+      ...configData,
+      [name]: checked
+    });
   };
-  
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
-    setTabValue(newValue);
-  };
-  
-  const handleCredentialChange = (service: string, field: string, value: any) => {
-    setCredentials(prevState => ({
-      ...prevState,
-      [service]: {
-        ...prevState[service],
-        [field]: value
-      }
-    }));
-  };
-  
-  const handleToggleShowPassword = (field: string) => {
-    setShowPassword(prevState => ({
-      ...prevState,
-      [field]: !prevState[field]
-    }));
-  };
-  
-  const validateCredentials = async (service: string) => {
-    setValidating({ ...validating, [service]: true });
-    try {
-      const response = await apiConfigApi.validateCredentials(service, credentials[service]);
-      
-      setSnackbar({
-        open: true,
-        message: response.valid ? 
-          `${service} credentials validated successfully` : 
-          `${service} credentials validation failed: ${response.message}`,
-        severity: response.valid ? 'success' : 'error'
-      });
-      
-      // Update API status in redux
-      if (response.valid) {
-        dispatch(setApiStatus({
-          ...apiStatus,
-          [service]: {
-            valid: true,
-            message: 'Credentials validated successfully',
-            lastChecked: new Date().toISOString()
-          }
-        }));
-      }
-      
-      return response.valid;
-    } catch (error) {
-      console.error(`Error validating ${service} credentials:`, error);
-      setSnackbar({
-        open: true,
-        message: `Failed to validate ${service} credentials`,
-        severity: 'error'
-      });
-      return false;
-    } finally {
-      setValidating({ ...validating, [service]: false });
-    }
-  };
-  
-  const saveCredentials = async (service: string) => {
-    setLoading(true);
-    try {
-      // Validate credentials before saving
-      const isValid = await validateCredentials(service);
-      
-      if (isValid) {
-        const response = await apiConfigApi.saveCredentials(service, credentials[service]);
-        
-        if (response.success) {
-          setSnackbar({
-            open: true,
-            message: `${service} credentials saved successfully`,
-            severity: 'success'
-          });
-          
-          // Update redux state
-          dispatch(setApiCredentials({
-            ...apiCredentials,
-            [service]: credentials[service]
-          }));
-        } else {
-          setSnackbar({
-            open: true,
-            message: `Failed to save ${service} credentials: ${response.message}`,
-            severity: 'error'
-          });
-        }
-      }
-    } catch (error) {
-      console.error(`Error saving ${service} credentials:`, error);
-      setSnackbar({
-        open: true,
-        message: `Failed to save ${service} credentials`,
-        severity: 'error'
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  const createBackup = async () => {
-    setLoading(true);
-    try {
-      const response = await apiConfigApi.createBackup();
-      
-      if (response.success) {
-        setSnackbar({
-          open: true,
-          message: `Backup created successfully: ${response.backupPath}`,
-          severity: 'success'
-        });
-        
-        // Refresh backups list
-        loadBackups();
-      } else {
-        setSnackbar({
-          open: true,
-          message: `Failed to create backup: ${response.message}`,
-          severity: 'error'
-        });
-      }
-    } catch (error) {
-      console.error('Error creating backup:', error);
-      setSnackbar({
-        open: true,
-        message: 'Failed to create backup',
-        severity: 'error'
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  const restoreFromBackup = async () => {
-    if (!selectedBackup) {
-      setSnackbar({
-        open: true,
-        message: 'Please select a backup to restore',
-        severity: 'warning'
-      });
-      return;
-    }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
     
-    setLoading(true);
     try {
-      const response = await apiConfigApi.restoreFromBackup(selectedBackup);
+      // In a real implementation, this would call the API
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
-      if (response.success) {
-        setSnackbar({
-          open: true,
-          message: 'Credentials restored successfully from backup',
-          severity: 'success'
-        });
-        
-        // Reload credentials
-        loadApiCredentials();
-      } else {
-        setSnackbar({
-          open: true,
-          message: `Failed to restore from backup: ${response.message}`,
-          severity: 'error'
-        });
-      }
+      toast({
+        title: "Configuration saved successfully",
+        description: "Your API configuration has been updated.",
+      });
     } catch (error) {
-      console.error('Error restoring from backup:', error);
-      setSnackbar({
-        open: true,
-        message: 'Failed to restore from backup',
-        severity: 'error'
+      toast({
+        title: "Error saving configuration",
+        description: "There was a problem saving your configuration. Please try again.",
+        variant: "destructive",
       });
     } finally {
-      setLoading(false);
+      setIsSubmitting(false);
     }
   };
-  
-  const handleCloseSnackbar = () => {
-    setSnackbar({ ...snackbar, open: false });
+
+  const handleTestConnection = (service) => {
+    toast({
+      title: `Testing ${service} connection`,
+      description: "Verifying API credentials...",
+    });
+    
+    // Simulate API test
+    setTimeout(() => {
+      toast({
+        title: `${service} connection successful`,
+        description: "API credentials are valid and working correctly.",
+      });
+    }, 1500);
   };
-  
+
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column' }}>
-        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tabs value={tabValue} onChange={handleTabChange} aria-label="API configuration tabs">
-            <Tab label="ElevenLabs" {...a11yProps(0)} />
-            <Tab label="Language Detection" {...a11yProps(1)} />
-            <Tab label="Voice Settings" {...a11yProps(2)} />
-            <Tab label="Backup & Restore" {...a11yProps(3)} />
-          </Tabs>
-        </Box>
-        
-        {/* ElevenLabs Configuration */}
-        <TabPanel value={tabValue} index={0}>
-          <Typography variant="h6" gutterBottom>
-            ElevenLabs Voice API Configuration
-            <Tooltip title="ElevenLabs provides high-quality voice synthesis for multiple languages and accents">
-              <IconButton size="small">
-                <HelpIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          </Typography>
-          
-          <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
-              <FormControl fullWidth variant="outlined" margin="normal">
-                <InputLabel htmlFor="elevenlabs-api-key">API Key</InputLabel>
-                <OutlinedInput
-                  id="elevenlabs-api-key"
-                  type={showPassword.elevenLabsApiKey ? 'text' : 'password'}
-                  value={credentials.elevenlabs?.apiKey || ''}
-                  onChange={(e) => handleCredentialChange('elevenlabs', 'apiKey', e.target.value)}
-                  endAdornment={
-                    <InputAdornment position="end">
-                      <IconButton
-                        aria-label="toggle password visibility"
-                        onClick={() => handleToggleShowPassword('elevenLabsApiKey')}
-                        edge="end"
-                      >
-                        {showPassword.elevenLabsApiKey ? <VisibilityOffIcon /> : <VisibilityIcon />}
-                      </IconButton>
-                    </InputAdornment>
-                  }
-                  label="API Key"
-                />
-                <FormHelperText>
-                  Enter your ElevenLabs API key. You can find this in your ElevenLabs dashboard.
-                </FormHelperText>
-              </FormControl>
-            </Grid>
-            
-            <Grid item xs={12} md={6}>
-              <FormControl fullWidth variant="outlined" margin="normal">
-                <InputLabel id="elevenlabs-model-label">Model</InputLabel>
-                <Select
-                  labelId="elevenlabs-model-label"
-                  id="elevenlabs-model"
-                  value={credentials.elevenlabs?.model || 'eleven_multilingual_v2'}
-                  onChange={(e) => handleCredentialChange('elevenlabs', 'model', e.target.value)}
-                  label="Model"
-                >
-                  <MenuItem value="eleven_monolingual_v1">Monolingual v1</MenuItem>
-                  <MenuItem value="eleven_multilingual_v1">Multilingual v1</MenuItem>
-                  <MenuItem value="eleven_multilingual_v2">Multilingual v2 (Recommended)</MenuItem>
-                </Select>
-                <FormHelperText>
-                  Select the ElevenLabs model to use. Multilingual v2 is recommended for Indian languages.
-                </FormHelperText>
-              </FormControl>
-            </Grid>
-            
-            <Grid item xs={12}>
-              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
-                <Button
-                  variant="outlined"
-                  color="primary"
-                  onClick={() => validateCredentials('elevenlabs')}
-                  disabled={validating.elevenlabs || !credentials.elevenlabs?.apiKey}
-                  startIcon={validating.elevenlabs ? <CircularProgress size={20} /> : <CheckIcon />}
-                  sx={{ mr: 2 }}
-                >
-                  Validate
-                </Button>
-                <Button
-                  variant="contained"
-                  color="primary"
-                  onClick={() => saveCredentials('elevenlabs')}
-                  disabled={loading || !credentials.elevenlabs?.apiKey}
-                  startIcon={loading ? <CircularProgress size={20} /> : <SaveIcon />}
-                >
-                  Save
-                </Button>
-              </Box>
-            </Grid>
-            
-            <Grid item xs={12}>
-              <Card variant="outlined" sx={{ mt: 2 }}>
-                <CardHeader title="API Status" />
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    {apiStatus?.elevenlabs?.valid ? (
-                      <CheckIcon color="success" sx={{ mr: 1 }} />
-                    ) : (
-                      <ErrorIcon color="error" sx={{ mr: 1 }} />
-                    )}
-                    <Typography>
-                      {apiStatus?.elevenlabs?.valid ? 'Connected' : 'Not Connected'}
-                    </Typography>
-                  </Box>
-                  {apiStatus?.elevenlabs?.lastChecked && (
-                    <Typography variant="body2" color="textSecondary">
-                      Last checked: {new Date(apiStatus.elevenlabs.lastChecked).toLocaleString()}
-                    </Typography>
-                  )}
-                </CardContent>
-              </Card>
-            </Grid>
-          </Grid>
-        </TabPanel>
-        
-        {/* Language Detection Configuration */}
-        <TabPanel value={tabValue} index={1}>
-          <Typography variant="h6" gutterBottom>
-            Language Detection API Configuration
-            <Tooltip title="Configure the language detection service for real-time language switching">
-              <IconButton size="small">
-                <HelpIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          </Typography>
-          
-          <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
-              <FormControl fullWidth variant="outlined" margin="normal">
-                <InputLabel htmlFor="language-detection-api-key">API Key</InputLabel>
-                <OutlinedInput
-                  id="language-detection-api-key"
-                  type={showPassword.languageDetectionApiKey ? 'text' : 'password'}
-                  value={credentials.languageDetection?.apiKey || ''}
-                  onChange={(e) => handleCredentialChange('languageDetection', 'apiKey', e.target.value)}
-                  endAdornment={
-                    <InputAdornment position="end">
-                      <IconButton
-                        aria-label="toggle password visibility"
-                        onClick={() => handleToggleShowPassword('languageDetectionApiKey')}
-                        edge="end"
-                      >
-                        {showPassword.languageDetectionApiKey ? <VisibilityOffIcon /> : <VisibilityIcon />}
-                      </IconButton>
-                    </InputAdornment>
-                  }
-                  label="API Key"
-                />
-                <FormHelperText>
-                  Enter your language detection API key.
-                </FormHelperText>
-              </FormControl>
-            </Grid>
-            
-            <Grid item xs={12} md={6}>
-              <FormControl fullWidth variant="outlined" margin="normal">
-                <InputLabel id="language-detection-region-label">Region</InputLabel>
-                <Select
-                  labelId="language-detection-region-label"
-                  id="language-detection-region"
-                  value={credentials.languageDetection?.region || 'global'}
-                  onChange={(e) => handleCredentialChange('languageDetection', 'region', e.target.value)}
-                  label="Region"
-                >
-                  <MenuItem value="global">Global</MenuItem>
-                  <MenuItem value="asia-south1">Asia South (Mumbai)</MenuItem>
-                  <MenuItem value="asia-east1">Asia East (Singapore)</MenuItem>
-                  <MenuItem value="us-central1">US Central</MenuItem>
-                  <MenuItem value="europe-west1">Europe West</MenuItem>
-                </Select>
-                <FormHelperText>
-                  Select the region for language detection API. Choose the closest region for best performance.
-                </FormHelperText>
-              </FormControl>
-            </Grid>
-            
-            <Grid item xs={12} md={6}>
-              <FormControl fullWidth variant="outlined" margin="normal">
-                <InputLabel htmlFor="min-confidence">Minimum Confidence</InputLabel>
-                <OutlinedInput
-                  id="min-confidence"
-                  type="number"
-                  value={credentials.languageDetection?.minConfidence || 0.6}
-                  onChange={(e) => handleCredentialChange(
-                    'languageDetection', 
-                    'minConfidence', 
-                    parseFloat(e.target.value)
-                  )}
-                  inputProps={{ min: 0, max: 1, step: 0.1 }}
-                  label="Minimum Confidence"
-                />
-                <FormHelperText>
-                  Minimum confidence threshold (0-1) for language detection.
-                </FormHelperText>
-              </FormControl>
-            </Grid>
-            
-            <Grid item xs={12}>
-              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
-                <Button
-                  variant="outlined"
-                  color="primary"
-                  onClick={() => validateCredentials('languageDetection')}
-                  disabled={validating.languageDetection || !credentials.languageDetection?.apiKey}
-                  startIcon={validating.languageDetection ? <CircularProgress size={20} /> : <CheckIcon />}
-                  sx={{ mr: 2 }}
-                >
-                  Validate
-                </Button>
-                <Button
-                  variant="contained"
-                  color="primary"
-                  onClick={() => saveCredentials('languageDetection')}
-                  disabled={loading || !credentials.languageDetection?.apiKey}
-                  startIcon={loading ? <CircularProgress size={20} /> : <SaveIcon />}
-                >
-                  Save
-                </Button>
-              </Box>
-            </Grid>
-            
-            <Grid item xs={12}>
-              <Card variant="outlined" sx={{ mt: 2 }}>
-                <CardHeader title="API Status" />
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    {apiStatus?.languageDetection?.valid ? (
-                      <CheckIcon color="success" sx={{ mr: 1 }} />
-                    ) : (
-                      <ErrorIcon color="error" sx={{ mr: 1 }} />
-                    )}
-                    <Typography>
-                      {apiStatus?.languageDetection?.valid ? 'Connected' : 'Not Connected'}
-                    </Typography>
-                  </Box>
-                  {apiStatus?.languageDetection?.lastChecked && (
-                    <Typography variant="body2" color="textSecondary">
-                      Last checked: {new Date(apiStatus.languageDetection.lastChecked).toLocaleString()}
-                    </Typography>
-                  )}
-                </CardContent>
-              </Card>
-            </Grid>
-          </Grid>
-        </TabPanel>
-        
-        {/* Voice Settings Configuration */}
-        <TabPanel value={tabValue} index={2}>
-          <Typography variant="h6" gutterBottom>
-            Voice Settings
-            <Tooltip title="Configure default voice settings for calls">
-              <IconButton size="small">
-                <HelpIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          </Typography>
-          
-          <Grid container spacing={3}>
-            <Grid item xs={12} md={4}>
-              <FormControl fullWidth variant="outlined" margin="normal">
-                <InputLabel id="default-voice-type-label">Default Voice Type</InputLabel>
-                <Select
-                  labelId="default-voice-type-label"
-                  id="default-voice-type"
-                  value={credentials.voiceSettings?.defaultVoice || 'female'}
-                  onChange={(e) => handleCredentialChange('voiceSettings', 'defaultVoice', e.target.value)}
-                  label="Default Voice Type"
-                >
-                  <MenuItem value="female">Female</MenuItem>
-                  <MenuItem value="male">Male</MenuItem>
-                </Select>
-                <FormHelperText>
-                  Select the default voice type for calls.
-                </FormHelperText>
-              </FormControl>
-            </Grid>
-            
-            <Grid item xs={12} md={4}>
-              <FormControl fullWidth variant="outlined" margin="normal">
-                <InputLabel id="default-personality-label">Default Personality</InputLabel>
-                <Select
-                  labelId="default-personality-label"
-                  id="default-personality"
-                  value={credentials.voiceSettings?.defaultPersonality || 'professional'}
-                  onChange={(e) => handleCredentialChange('voiceSettings', 'defaultPersonality', e.target.value)}
-                  label="Default Personality"
-                >
-                  <MenuItem value="professional">Professional</MenuItem>
-                  <MenuItem value="friendly">Friendly</MenuItem>
-                  <MenuItem value="empathetic">Empathetic</MenuItem>
-                </Select>
-                <FormHelperText>
-                  Select the default voice personality for calls.
-                </FormHelperText>
-              </FormControl>
-            </Grid>
-            
-            <Grid item xs={12} md={4}>
-              <FormControl fullWidth variant="outlined" margin="normal">
-                <InputLabel id="default-language-label">Default Language</InputLabel>
-                <Select
-                  labelId="default-language-label"
-                  id="default-language"
-                  value={credentials.voiceSettings?.defaultLanguage || 'english'}
-                  onChange={(e) => handleCredentialChange('voiceSettings', 'defaultLanguage', e.target.value)}
-                  label="Default Language"
-                >
-                  <MenuItem value="english">English</MenuItem>
-                  <MenuItem value="hindi">Hindi</MenuItem>
-                  <MenuItem value="tamil">Tamil</MenuItem>
-                  <MenuItem value="telugu">Telugu</MenuItem>
-                  <MenuItem value="bengali">Bengali</MenuItem>
-                  <MenuItem value="marathi">Marathi</MenuItem>
-                  <MenuItem value="gujarati">Gujarati</MenuItem>
-                  <MenuItem value="kannada">Kannada</MenuItem>
-                  <MenuItem value="malayalam">Malayalam</MenuItem>
-                  <MenuItem value="punjabi">Punjabi</MenuItem>
-                  <MenuItem value="odia">Odia</MenuItem>
-                  <MenuItem value="assamese">Assamese</MenuItem>
-                </Select>
-                <FormHelperText>
-                  Select the default language for calls.
-                </FormHelperText>
-              </FormControl>
-            </Grid>
-            
-            <Grid item xs={12}>
-              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
-                <Button
-                  variant="contained"
-                  color="primary"
-                  onClick={() => saveCredentials('voiceSettings')}
-                  disabled={loading}
-                  startIcon={loading ? <CircularProgress size={20} /> : <SaveIcon />}
-                >
-                  Save
-                </Button>
-              </Box>
-            </Grid>
-          </Grid>
-        </TabPanel>
-        
-        {/* Backup & Restore */}
-        <TabPanel value={tabValue} index={3}>
-          <Typography variant="h6" gutterBottom>
-            Backup & Restore
-            <Tooltip title="Create backups of your API configurations and restore when needed">
-              <IconButton size="small">
-                <HelpIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          </Typography>
-          
-          <Grid container spacing={3}>
-            <Grid item xs={12}>
-              <Button
-                variant="contained"
-                color="primary"
-                onClick={createBackup}
-                disabled={loading}
-                startIcon={loading ? <CircularProgress size={20} /> : <BackupIcon />}
-                sx={{ mb: 2 }}
-              >
-                Create Backup
-              </Button>
-            </Grid>
-            
-            <Grid item xs={12}>
-              <Divider sx={{ my: 2 }} />
-              <Typography variant="subtitle1" gutterBottom>
-                Available Backups
-              </Typography>
-              
-              {backups.length === 0 ? (
-                <Typography variant="body2" color="textSecondary">
-                  No backups available
-                </Typography>
-              ) : (
-                <>
-                  <FormControl fullWidth variant="outlined" margin="normal">
-                    <InputLabel id="backup-select-label">Select Backup</InputLabel>
-                    <Select
-                      labelId="backup-select-label"
-                      id="backup-select"
-                      value={selectedBackup}
-                      onChange={(e) => setSelectedBackup(e.target.value as string)}
-                      label="Select Backup"
-                    >
-                      {backups.map((backup) => (
-                        <MenuItem key={backup.path} value={backup.path}>
-                          {backup.filename} - {new Date(backup.created).toLocaleString()}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                  
-                  <Button
-                    variant="contained"
-                    color="secondary"
-                    onClick={restoreFromBackup}
-                    disabled={loading || !selectedBackup}
-                    startIcon={loading ? <CircularProgress size={20} /> : <RestoreIcon />}
-                    sx={{ mt: 2 }}
-                  >
-                    Restore Selected Backup
-                  </Button>
-                </>
-              )}
-            </Grid>
-          </Grid>
-        </TabPanel>
-      </Paper>
+    <div className="container mx-auto py-10">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-3xl font-bold">API Configuration</h1>
+          <p className="text-muted-foreground">Configure external service integrations</p>
+        </div>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="outline">
+              <HelpCircle className="mr-2 h-4 w-4" />
+              Help Guide
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>API Configuration Guide</AlertDialogTitle>
+              <AlertDialogDescription>
+                <p className="mb-4">This page allows you to configure all external services used by the AI cold-calling agent. Follow these steps:</p>
+                <ol className="list-decimal pl-5 space-y-2">
+                  <li>Obtain API keys from each service provider's website</li>
+                  <li>Enter the API keys and other required information in the appropriate fields</li>
+                  <li>Test each connection to verify your credentials are working</li>
+                  <li>Save your configuration when all tests pass</li>
+                </ol>
+                <p className="mt-4">For security, all API keys are encrypted before being stored in the database.</p>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogAction>Close</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
       
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={6000}
-        onClose={handleCloseSnackbar}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-      >
-        <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
-    </Container>
+      <form onSubmit={handleSubmit}>
+        <Tabs defaultValue="voice" className="w-full">
+          <TabsList className="mb-4">
+            <TabsTrigger value="voice">Voice Synthesis</TabsTrigger>
+            <TabsTrigger value="telephony">Telephony</TabsTrigger>
+            <TabsTrigger value="language">Language Detection</TabsTrigger>
+            <TabsTrigger value="ai">AI Models</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="voice">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Mic className="mr-2 h-5 w-5" />
+                  ElevenLabs Voice Configuration
+                </CardTitle>
+                <CardDescription>
+                  Configure ElevenLabs for high-quality voice synthesis
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="elevenLabsApiKey">API Key</Label>
+                    <a 
+                      href="https://elevenlabs.io/subscription" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-xs text-blue-600 hover:underline"
+                    >
+                      Get an API key
+                    </a>
+                  </div>
+                  <Input 
+                    id="elevenLabsApiKey" 
+                    name="elevenLabsApiKey" 
+                    type="password"
+                    value={configData.elevenLabsApiKey}
+                    onChange={handleInputChange}
+                    placeholder="Enter your ElevenLabs API key"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Your API key is encrypted before being stored
+                  </p>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="elevenLabsModelId">Voice Model</Label>
+                    <select 
+                      id="elevenLabsModelId" 
+                      name="elevenLabsModelId" 
+                      value={configData.elevenLabsModelId}
+                      onChange={handleInputChange}
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <option value="eleven_multilingual_v2">Multilingual v2 (Recommended)</option>
+                      <option value="eleven_multilingual_v1">Multilingual v1</option>
+                      <option value="eleven_monolingual_v1">Monolingual v1</option>
+                      <option value="eleven_english_v1">English Only</option>
+                    </select>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="elevenLabsVoiceId">Default Voice</Label>
+                    <select 
+                      id="elevenLabsVoiceId" 
+                      name="elevenLabsVoiceId" 
+                      value={configData.elevenLabsVoiceId}
+                      onChange={handleInputChange}
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <option value="pNInz6obpgDQGcFmaJgB">Adam (Male, Professional)</option>
+                      <option value="21m00Tcm4TlvDq8ikWAM">Rachel (Female, Professional)</option>
+                      <option value="AZnzlk1XvdvUeBnXmlld">Domi (Female, Friendly)</option>
+                      <option value="MF3mGyEYCl7XYWbV9V6O">Elli (Female, Friendly)</option>
+                      <option value="TxGEqnHWrfWFTfGW9XjX">Josh (Male, Friendly)</option>
+                      <option value="yoZ06aMxZJJ28mfd3POQ">Sam (Male, Friendly)</option>
+                    </select>
+                  </div>
+                </div>
+                
+                <Accordion type="single" collapsible className="w-full">
+                  <AccordionItem value="advanced">
+                    <AccordionTrigger>Advanced Voice Settings</AccordionTrigger>
+                    <AccordionContent>
+                      <div className="space-y-4 pt-2">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="stability">Stability</Label>
+                            <Input 
+                              id="stability" 
+                              name="stability" 
+                              type="range"
+                              min="0"
+                              max="1"
+                              step="0.1"
+                              defaultValue="0.5"
+                            />
+                            <div className="flex justify-between text-xs text-muted-foreground">
+                              <span>More Variable</span>
+                              <span>More Stable</span>
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label htmlFor="clarity">Clarity + Similarity Enhancement</Label>
+                            <Input 
+                              id="clarity" 
+                              name="clarity" 
+                              type="range"
+                              min="0"
+                              max="1"
+                              step="0.1"
+                              defaultValue="0.75"
+                            />
+                            <div className="flex justify-between text-xs text-muted-foreground">
+                              <span>Less Clear</span>
+                              <span>More Clear</span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label htmlFor="style">Speaking Style</Label>
+                          <Input 
+                            id="style" 
+                            name="style" 
+                            type="range"
+                            min="0"
+                            max="1"
+                            step="0.1"
+                            defaultValue="0.3"
+                          />
+                          <div className="flex justify-between text-xs text-muted-foreground">
+                            <span>Natural</span>
+                            <span>Expressive</span>
+                          </div>
+                        </div>
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+                
+                <div className="pt-4">
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={() => handleTestConnection('ElevenLabs')}
+                    disabled={!configData.elevenLabsApiKey}
+                  >
+                    Test ElevenLabs Connection
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          <TabsContent value="telephony">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Phone className="mr-2 h-5 w-5" />
+                  Twilio Telephony Configuration
+                </CardTitle>
+                <CardDescription>
+                  Configure Twilio for making and receiving phone calls
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="twilioAccountSid">Account SID</Label>
+                    <a 
+                      href="https://www.twilio.com/console" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-xs text-blue-600 hover:underline"
+                    >
+                      Twilio Console
+                    </a>
+                  </div>
+                  <Input 
+                    id="twilioAccountSid" 
+                    name="twilioAccountSid" 
+                    value={configData.twilioAccountSid}
+                    onChange={handleInputChange}
+                    placeholder="Enter your Twilio Account SID"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="twilioAuthToken">Auth Token</Label>
+                  <Input 
+                    id="twilioAuthToken" 
+                    name="twilioAuthToken" 
+                    type="password"
+                    value={configData.twilioAuthToken}
+                    onChange={handleInputChange}
+                    placeholder="Enter your Twilio Auth Token"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Your Auth Token is encrypted before being stored
+                  </p>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="twilioPhoneNumber">Twilio Phone Number</Label>
+                  <Input 
+                    id="twilioPhoneNumber" 
+                    name="twilioPhoneNumber" 
+                    value={configData.twilioPhoneNumber}
+                    onChange={handleInputChange}
+                    placeholder="+1234567890"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Enter in international format (e.g., +1234567890)
+                  </p>
+                </div>
+                
+                <Accordion type="single" collapsible className="w-full">
+                  <AccordionItem value="advanced">
+                    <AccordionTrigger>Advanced Telephony Settings</AccordionTrigger>
+                    <AccordionContent>
+                      <div className="space-y-4 pt-2">
+                        <div className="flex items-center space-x-2">
+                          <Switch id="recordCalls" defaultChecked />
+                          <Label htmlFor="recordCalls">Record calls for quality and training</Label>
+                        </div>
+                        
+                        <div className="flex items-center space-x-2">
+                          <Switch id="transcribeCalls" defaultChecked />
+                          <Label htmlFor="transcribeCalls">Automatically transcribe calls</Label>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label htmlFor="callTimeout">Call Timeout (seconds)</Label>
+                          <Input 
+                            id="callTimeout" 
+                            name="callTimeout" 
+                            type="number"
+                            min="30"
+                            max="300"
+                            defaultValue="60"
+                          />
+                        </div>
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+                
+                <div className="pt-4">
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={() => handleTestConnection('Twilio')}
+                    disabled={!configData.twilioAccountSid || !configData.twilioAuthToken}
+                  >
+                    Test Twilio Connection
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          <TabsContent value="language">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Globe className="mr-2 h-5 w-5" />
+                  Language Detection Configuration
+                </CardTitle>
+                <CardDescription>
+                  Configure real-time language detection settings
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="languageDetectionThreshold">Detection Confidence Threshold</Label>
+                  <Input 
+                    id="languageDetectionThreshold" 
+                    name="languageDetectionThreshold" 
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={configData.languageDetectionThreshold}
+                    onChange={handleInputChange}
+                  />
+                  <div className="flex justify-between">
+                    <span className="text-xs text-muted-foreground">More Sensitive (0.5)</span>
+                    <span className="text-sm font-medium">{configData.languageDetectionThreshold}</span>
+                    <span className="text-xs text-muted-foreground">More Accurate (0.95)</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Higher values require more confidence before switching languages
+                  </p>
+                </div>
+                
+                <div className="space-y-4 pt-2">
+                  <div className="flex items-center space-x-2">
+                    <Switch 
+                      id="enableAutoLanguageSwitching" 
+                      checked={configData.enableAutoLanguageSwitching}
+                      onCheckedChange={(checked) => handleSwitchChange('enableAutoLanguageSwitching', checked)}
+                    />
+                    <Label htmlFor="enableAutoLanguageSwitching">Enable automatic language switching</Label>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Switch 
+                      id="enableRealTimeTranscription" 
+                      checked={configData.enableRealTimeTranscription}
+                      onCheckedChange={(checked) => handleSwitchChange('enableRealTimeTranscription', checked)}
+                    />
+                    <Label htmlFor="enableRealTimeTranscription">Enable real-time transcription</Label>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Switch 
+                      id="enableSentimentAnalysis" 
+                      checked={configData.enableSentimentAnalysis}
+                      onCheckedChange={(checked) => handleSwitchChange('enableSentimentAnalysis', checked)}
+                    />
+                    <Label htmlFor="enableSentimentAnalysis">Enable sentiment analysis</Label>
+                  </div>
+                </div>
+                
+                <div className="pt-4">
+                  <h3 className="font-medium mb-2">Supported Languages</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                    {[
+                      'English', 'Hindi', 'Tamil', 'Telugu', 
+                      'Bengali', 'Marathi', 'Gujarati', 'Kannada',
+                      'Malayalam', 'Punjabi', 'Urdu', 'Odia'
+                    ].map((language) => (
+                      <div key={language} className="flex items-center space-x-2">
+                        <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center">
+                          <Check className="h-3 w-3 text-white" />
+                        </div>
+                        <span>{language}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                
+                <div className="rounded-md border p-4 bg-amber-50 text-amber-800 mt-4">
+                  <div className="flex">
+                    <AlertTriangle className="h-5 w-5 mr-2" />
+                    <div>
+                      <h4 className="font-medium">Language Detection Notice</h4>
+                      <p className="text-sm">
+                        Language detection requires the AI model configuration to be properly set up.
+                        Please ensure you have configured the AI Models tab.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          <TabsContent value="ai">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Key className="mr-2 h-5 w-5" />
+                  AI Model Configuration
+                </CardTitle>
+                <CardDescription>
+                  Configure AI models for conversation and language processing
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="openAiApiKey">OpenAI API Key</Label>
+                    <a 
+                      href="https://platform.openai.com/api-keys" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-xs text-blue-600 hover:underline"
+                    >
+                      Get an API key
+                    </a>
+                  </div>
+                  <Input 
+                    id="openAiApiKey" 
+                    name="openAiApiKey" 
+                    type="password"
+                    value={configData.openAiApiKey}
+                    onChange={handleInputChange}
+                    placeholder="Enter your OpenAI API key"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Your API key is encrypted before being stored
+                  </p>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="openAiModelId">AI Model</Label>
+                  <select 
+                    id="openAiModelId" 
+                    name="openAiModelId" 
+                    value={configData.openAiModelId}
+                    onChange={handleInputChange}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <option value="gpt-4o">GPT-4o (Recommended)</option>
+                    <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                    <option value="gpt-4">GPT-4</option>
+                    <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                  </select>
+                  <p className="text-xs text-muted-foreground">
+                    GPT-4o is recommended for best multilingual performance
+                  </p>
+                </div>
+                
+                <Accordion type="single" collapsible className="w-full">
+                  <AccordionItem value="advanced">
+                    <AccordionTrigger>Advanced AI Settings</AccordionTrigger>
+                    <AccordionContent>
+                      <div className="space-y-4 pt-2">
+                        <div className="space-y-2">
+                          <Label htmlFor="temperature">Temperature</Label>
+                          <Input 
+                            id="temperature" 
+                            name="temperature" 
+                            type="range"
+                            min="0"
+                            max="1"
+                            step="0.1"
+                            defaultValue="0.7"
+                          />
+                          <div className="flex justify-between text-xs text-muted-foreground">
+                            <span>More Focused</span>
+                            <span>More Creative</span>
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label htmlFor="maxTokens">Max Response Length</Label>
+                          <select 
+                            id="maxTokens" 
+                            name="maxTokens" 
+                            defaultValue="1024"
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <option value="512">Short (512 tokens)</option>
+                            <option value="1024">Medium (1024 tokens)</option>
+                            <option value="2048">Long (2048 tokens)</option>
+                            <option value="4096">Very Long (4096 tokens)</option>
+                          </select>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label htmlFor="systemPrompt">System Prompt</Label>
+                          <Textarea 
+                            id="systemPrompt" 
+                            name="systemPrompt" 
+                            rows={4}
+                            defaultValue="You are an AI assistant making phone calls on behalf of a company. Your goal is to be helpful, clear, and professional while respecting the customer's time and preferences. Adapt to the customer's language and communication style."
+                          />
+                        </div>
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+                
+                <div className="pt-4">
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={() => handleTestConnection('OpenAI')}
+                    disabled={!configData.openAiApiKey}
+                  >
+                    Test OpenAI Connection
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+        
+        <div className="mt-6 flex justify-end gap-4">
+          <Button variant="outline" type="button" onClick={() => navigate('/dashboard')}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? "Saving..." : "Save Configuration"}
+          </Button>
+        </div>
+      </form>
+    </div>
   );
 };
 

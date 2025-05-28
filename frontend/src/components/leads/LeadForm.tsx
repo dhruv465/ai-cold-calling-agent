@@ -1,260 +1,250 @@
-// src/components/leads/LeadForm.tsx
-import React, { useEffect } from 'react';
-import { 
-  Box, 
-  Typography, 
-  Paper, 
-  TextField, 
-  Button, 
-  Grid, 
-  MenuItem, 
-  FormControl, 
-  InputLabel, 
-  Select, 
-  CircularProgress,
-  Alert
-} from '@mui/material';
-import { useFormik } from 'formik';
-import * as Yup from 'yup';
-import { useDispatch, useSelector } from 'react-redux';
-import { AppDispatch, RootState } from '../../redux/store';
-import { createLead, updateLead, fetchLeadById, clearSelectedLead, clearLeadError } from '../../redux/slices/leadSlice';
-import { useNavigate, useParams } from 'react-router-dom';
-import { Lead } from '../../types';
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '../ui/card';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
+import { useToast } from '../ui/use-toast';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
+import { Checkbox } from '../ui/checkbox';
 
-const LeadForm: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
-  const isEditMode = Boolean(id);
-  const dispatch = useDispatch<AppDispatch>();
+const LeadForm = () => {
   const navigate = useNavigate();
-  const { selectedLead, isLoading, error } = useSelector((state: RootState) => state.leads);
+  const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [leadData, setLeadData] = React.useState({
+    firstName: '',
+    lastName: '',
+    company: '',
+    phoneNumber: '',
+    email: '',
+    source: 'manual',
+    notes: '',
+    tags: [],
+    priority: 'medium',
+    assignedTo: '',
+    doNotCall: false
+  });
 
-  useEffect(() => {
-    if (isEditMode && id) {
-      dispatch(fetchLeadById(parseInt(id)));
-    }
-
-    return () => {
-      dispatch(clearSelectedLead());
-    };
-  }, [dispatch, id, isEditMode]);
-
-  const initialValues: Partial<Lead> = {
-    first_name: selectedLead?.first_name || '',
-    last_name: selectedLead?.last_name || '',
-    email: selectedLead?.email || '',
-    phone_number: selectedLead?.phone_number || '',
-    lead_source: selectedLead?.lead_source || '',
-    language_preference: selectedLead?.language_preference || 'english',
-    status: selectedLead?.status || 'new',
-    notes: selectedLead?.notes || '',
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setLeadData({
+      ...leadData,
+      [name]: value
+    });
   };
 
-  const validationSchema = Yup.object({
-    first_name: Yup.string().required('First name is required'),
-    last_name: Yup.string().required('Last name is required'),
-    email: Yup.string().email('Invalid email address').required('Email is required'),
-    phone_number: Yup.string()
-      .matches(/^\+?[0-9]{10,15}$/, 'Phone number must be between 10-15 digits')
-      .required('Phone number is required'),
-    language_preference: Yup.string().required('Language preference is required'),
-    status: Yup.string().required('Status is required'),
-  });
+  const handleCheckboxChange = (name, checked) => {
+    setLeadData({
+      ...leadData,
+      [name]: checked
+    });
+  };
 
-  const formik = useFormik({
-    initialValues,
-    validationSchema,
-    enableReinitialize: true,
-    onSubmit: async (values) => {
-      if (isEditMode && id) {
-        const resultAction = await dispatch(updateLead({ id: parseInt(id), leadData: values }));
-        if (updateLead.fulfilled.match(resultAction)) {
-          navigate('/leads');
-        }
-      } else {
-        const resultAction = await dispatch(createLead(values));
-        if (createLead.fulfilled.match(resultAction)) {
-          navigate('/leads');
-        }
-      }
-    },
-  });
-
-  if (isLoading && isEditMode && !selectedLead) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    
+    try {
+      // In a real implementation, this would call the API
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      toast({
+        title: "Lead created successfully",
+        description: `${leadData.firstName} ${leadData.lastName} has been added to your leads.`,
+      });
+      
+      navigate('/leads');
+    } catch (error) {
+      toast({
+        title: "Error creating lead",
+        description: "There was a problem creating the lead. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
-    <Box sx={{ py: 2 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4">{isEditMode ? 'Edit Lead' : 'Add New Lead'}</Typography>
-      </Box>
-
-      {error && (
-        <Alert 
-          severity="error" 
-          sx={{ mb: 3 }}
-          onClose={() => dispatch(clearLeadError())}
-        >
-          {error}
-        </Alert>
-      )}
-
-      <Paper sx={{ p: 3 }}>
-        <form onSubmit={formik.handleSubmit}>
-          <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                id="first_name"
-                name="first_name"
-                label="First Name"
-                value={formik.values.first_name}
-                onChange={formik.handleChange}
-                onBlur={formik.handleBlur}
-                error={formik.touched.first_name && Boolean(formik.errors.first_name)}
-                helperText={formik.touched.first_name && formik.errors.first_name}
-              />
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                id="last_name"
-                name="last_name"
-                label="Last Name"
-                value={formik.values.last_name}
-                onChange={formik.handleChange}
-                onBlur={formik.handleBlur}
-                error={formik.touched.last_name && Boolean(formik.errors.last_name)}
-                helperText={formik.touched.last_name && formik.errors.last_name}
-              />
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                id="email"
-                name="email"
-                label="Email"
-                value={formik.values.email}
-                onChange={formik.handleChange}
-                onBlur={formik.handleBlur}
-                error={formik.touched.email && Boolean(formik.errors.email)}
-                helperText={formik.touched.email && formik.errors.email}
-              />
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                id="phone_number"
-                name="phone_number"
-                label="Phone Number"
-                value={formik.values.phone_number}
-                onChange={formik.handleChange}
-                onBlur={formik.handleBlur}
-                error={formik.touched.phone_number && Boolean(formik.errors.phone_number)}
-                helperText={formik.touched.phone_number && formik.errors.phone_number}
-              />
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                id="lead_source"
-                name="lead_source"
-                label="Lead Source"
-                value={formik.values.lead_source}
-                onChange={formik.handleChange}
-                onBlur={formik.handleBlur}
-                error={formik.touched.lead_source && Boolean(formik.errors.lead_source)}
-                helperText={formik.touched.lead_source && formik.errors.lead_source}
-              />
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <FormControl fullWidth>
-                <InputLabel id="language-preference-label">Language Preference</InputLabel>
-                <Select
-                  labelId="language-preference-label"
-                  id="language_preference"
-                  name="language_preference"
-                  value={formik.values.language_preference}
-                  label="Language Preference"
-                  onChange={formik.handleChange}
-                  onBlur={formik.handleBlur}
-                  error={formik.touched.language_preference && Boolean(formik.errors.language_preference)}
-                >
-                  <MenuItem value="english">English</MenuItem>
-                  <MenuItem value="hindi">Hindi</MenuItem>
-                  <MenuItem value="tamil">Tamil</MenuItem>
-                  <MenuItem value="telugu">Telugu</MenuItem>
-                  <MenuItem value="kannada">Kannada</MenuItem>
-                  <MenuItem value="malayalam">Malayalam</MenuItem>
-                  <MenuItem value="marathi">Marathi</MenuItem>
-                  <MenuItem value="bengali">Bengali</MenuItem>
-                  <MenuItem value="gujarati">Gujarati</MenuItem>
-                  <MenuItem value="punjabi">Punjabi</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <FormControl fullWidth>
-                <InputLabel id="status-label">Status</InputLabel>
-                <Select
-                  labelId="status-label"
-                  id="status"
-                  name="status"
-                  value={formik.values.status}
-                  label="Status"
-                  onChange={formik.handleChange}
-                  onBlur={formik.handleBlur}
-                  error={formik.touched.status && Boolean(formik.errors.status)}
-                >
-                  <MenuItem value="new">New</MenuItem>
-                  <MenuItem value="contacted">Contacted</MenuItem>
-                  <MenuItem value="qualified">Qualified</MenuItem>
-                  <MenuItem value="converted">Converted</MenuItem>
-                  <MenuItem value="rejected">Rejected</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                id="notes"
-                name="notes"
-                label="Notes"
-                multiline
-                rows={4}
-                value={formik.values.notes}
-                onChange={formik.handleChange}
-                onBlur={formik.handleBlur}
-                error={formik.touched.notes && Boolean(formik.errors.notes)}
-                helperText={formik.touched.notes && formik.errors.notes}
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
-                <Button 
-                  variant="outlined" 
-                  onClick={() => navigate('/leads')}
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  type="submit" 
-                  variant="contained" 
-                  disabled={isLoading}
-                >
-                  {isLoading ? <CircularProgress size={24} /> : isEditMode ? 'Update Lead' : 'Add Lead'}
-                </Button>
-              </Box>
-            </Grid>
-          </Grid>
-        </form>
-      </Paper>
-    </Box>
+    <div className="container mx-auto py-10">
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-3xl font-bold">Add New Lead</h1>
+        <Button variant="outline" onClick={() => navigate('/leads')}>
+          Cancel
+        </Button>
+      </div>
+      
+      <form onSubmit={handleSubmit}>
+        <Tabs defaultValue="basic" className="w-full">
+          <TabsList className="mb-4">
+            <TabsTrigger value="basic">Basic Information</TabsTrigger>
+            <TabsTrigger value="additional">Additional Details</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="basic">
+            <Card>
+              <CardHeader>
+                <CardTitle>Contact Information</CardTitle>
+                <CardDescription>
+                  Enter the basic contact details for this lead.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="firstName">First Name *</Label>
+                    <Input 
+                      id="firstName" 
+                      name="firstName" 
+                      value={leadData.firstName}
+                      onChange={handleInputChange}
+                      required
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="lastName">Last Name *</Label>
+                    <Input 
+                      id="lastName" 
+                      name="lastName" 
+                      value={leadData.lastName}
+                      onChange={handleInputChange}
+                      required
+                    />
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="company">Company</Label>
+                  <Input 
+                    id="company" 
+                    name="company" 
+                    value={leadData.company}
+                    onChange={handleInputChange}
+                  />
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="phoneNumber">Phone Number *</Label>
+                    <Input 
+                      id="phoneNumber" 
+                      name="phoneNumber" 
+                      value={leadData.phoneNumber}
+                      onChange={handleInputChange}
+                      required
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input 
+                      id="email" 
+                      name="email" 
+                      type="email"
+                      value={leadData.email}
+                      onChange={handleInputChange}
+                    />
+                  </div>
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    id="doNotCall" 
+                    checked={leadData.doNotCall}
+                    onCheckedChange={(checked) => handleCheckboxChange('doNotCall', checked)}
+                  />
+                  <Label htmlFor="doNotCall">Do Not Call (DND)</Label>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          <TabsContent value="additional">
+            <Card>
+              <CardHeader>
+                <CardTitle>Additional Information</CardTitle>
+                <CardDescription>
+                  Add more details about this lead to improve targeting.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="source">Lead Source</Label>
+                  <select 
+                    id="source" 
+                    name="source" 
+                    value={leadData.source}
+                    onChange={handleInputChange}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <option value="manual">Manual Entry</option>
+                    <option value="website">Website</option>
+                    <option value="referral">Referral</option>
+                    <option value="social">Social Media</option>
+                    <option value="event">Event</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="priority">Priority</Label>
+                  <select 
+                    id="priority" 
+                    name="priority" 
+                    value={leadData.priority}
+                    onChange={handleInputChange}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                  </select>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="assignedTo">Assigned To</Label>
+                  <select 
+                    id="assignedTo" 
+                    name="assignedTo" 
+                    value={leadData.assignedTo}
+                    onChange={handleInputChange}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <option value="">Unassigned</option>
+                    <option value="agent1">Agent 001 (Insurance Specialist)</option>
+                    <option value="agent2">Agent 002 (Product Specialist)</option>
+                    <option value="agent3">Agent 003 (Customer Service)</option>
+                  </select>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="notes">Notes</Label>
+                  <textarea 
+                    id="notes" 
+                    name="notes" 
+                    value={leadData.notes}
+                    onChange={handleInputChange}
+                    rows={4}
+                    className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+        
+        <div className="mt-6 flex justify-end gap-4">
+          <Button variant="outline" type="button" onClick={() => navigate('/leads')}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? "Saving..." : "Save Lead"}
+          </Button>
+        </div>
+      </form>
+    </div>
   );
 };
 
